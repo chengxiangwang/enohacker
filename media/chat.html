@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EnoHacker Chat</title>
+  <style>
+		html, body { height: 100%; }
+		body { font-family: var(--vscode-font-family); padding: 12px; color: var(--vscode-foreground); margin: 0; box-sizing: border-box; display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
+		#messages { border: 1px solid var(--vscode-editorWidget-border); border-radius: 8px; min-height: 0; max-height: none; overflow: auto; padding: 10px; margin-bottom: 10px; background: var(--vscode-editor-background); display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; }
+		.session-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+		#sessionSelect { min-width: 170px; max-width: 320px; height: 26px; border: 1px solid var(--vscode-input-border); background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); padding: 2px 6px; }
+		#newSessionBtn { height: 26px; border-radius: 6px; padding: 0 8px; font-size: 12px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); }
+		#newSessionBtn:hover { color: var(--vscode-foreground); border-color: var(--vscode-focusBorder); }
+		.msg-row { display: flex; gap: 8px; align-items: flex-start; }
+		.msg-avatar { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--vscode-input-border); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+		.msg-card { min-width: 0; flex: 1; border: 1px solid var(--vscode-input-border); border-radius: 8px; padding: 8px 10px; background: var(--vscode-editorWidget-background); }
+		.msg-head { font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: 4px; }
+		.msg-content { white-space: pre-wrap; line-height: 1.5; color: var(--vscode-foreground); word-break: break-word; }
+		.msg-content p { margin: 0 0 8px; }
+		.msg-content p:last-child { margin-bottom: 0; }
+		.msg-content h1, .msg-content h2, .msg-content h3, .msg-content h4, .msg-content h5, .msg-content h6 { margin: 10px 0 6px; line-height: 1.35; }
+		.msg-content ul, .msg-content ol { margin: 0 0 8px 18px; padding: 0; }
+		.msg-content li { margin: 2px 0; }
+		.msg-content blockquote { margin: 8px 0; padding-left: 10px; border-left: 3px solid var(--vscode-editorIndentGuide-background); color: var(--vscode-descriptionForeground); }
+		.msg-content pre { margin: 8px 0; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-textCodeBlock-background); padding: 10px; overflow: auto; }
+		.msg-content code { font-family: var(--vscode-editor-font-family, var(--vscode-font-family)); font-size: 12px; }
+		.msg-content p code, .msg-content li code { padding: 1px 4px; border-radius: 4px; background: var(--vscode-textCodeBlock-background); }
+		.msg-content a { color: var(--vscode-textLink-foreground); text-decoration: none; }
+		.msg-content a:hover { text-decoration: underline; }
+		.msg-content details.agent-step { margin: 0 0 8px; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-editorWidget-background); }
+		.msg-content details.agent-step > summary { cursor: pointer; list-style: none; padding: 8px 10px; font-size: 12px; color: var(--vscode-foreground); user-select: text; display: flex; align-items: center; gap: 8px; }
+		.msg-content details.agent-step > summary::-webkit-details-marker { display: none; }
+		.msg-content details.agent-step > summary::before { content: '▶'; display: inline-block; margin-right: 6px; color: var(--vscode-descriptionForeground); }
+		.msg-content details.agent-step[open] > summary::before { content: '▼'; }
+		.msg-content .agent-step-body { padding: 0 9px 8px; border-top: 1px solid var(--vscode-input-border); user-select: text; }
+		.msg-content .agent-step-body p { margin: 6px 0 0; font-size: 12px; }
+		.msg-content .agent-step-body code { font-size: 11px; }
+		.msg-content .cell-tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--vscode-input-border); color: var(--vscode-descriptionForeground); font-size: 11px; flex-shrink: 0; }
+		.msg-content .cell-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.msg-content .nb-section { margin: 8px 0; border-left: 3px solid var(--vscode-focusBorder); padding: 4px 0 4px 8px; background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent); }
+		.msg-content .nb-section p { margin: 4px 0; }
+		.msg-content details.log-fold { margin: 8px 0; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-editorWidget-background); }
+		.msg-content details.log-fold > summary { cursor: pointer; list-style: none; padding: 6px 9px; font-size: 12px; color: var(--vscode-descriptionForeground); user-select: text; }
+		.msg-content details.log-fold > summary::-webkit-details-marker { display: none; }
+		.msg-content details.log-fold > summary::before { content: '▶'; display: inline-block; margin-right: 6px; }
+		.msg-content details.log-fold[open] > summary::before { content: '▼'; }
+		.msg-content details.log-fold > pre { margin: 0; border: 0; border-top: 1px solid var(--vscode-input-border); border-radius: 0 0 6px 6px; }
+		.msg-row.user { justify-content: flex-end; }
+		.msg-row.user .msg-avatar { order: 2; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+		.msg-row.user .msg-card { order: 1; flex: 0 1 calc(100% - 34px); background: var(--vscode-inputOption-activeBackground); border-color: var(--vscode-focusBorder); }
+		.msg-row.user .msg-head { color: var(--vscode-textLink-foreground); }
+		.msg-row.assistant .msg-avatar { background: var(--vscode-editorWidget-background); color: var(--vscode-terminal-ansiMagenta); }
+		.msg-row.assistant .msg-card { background: var(--vscode-editorWidget-background); }
+		.composer { border: 1px solid var(--vscode-input-border); border-radius: 8px; background: var(--vscode-input-background); padding: 8px; margin-top: auto; }
+		.input-wrap { position: relative; margin-top: 8px; }
+		#question { width: 100%; min-height: 76px; max-height: 180px; border: 0; resize: vertical; outline: none; background: transparent; color: var(--vscode-input-foreground); font-family: var(--vscode-font-family); box-sizing: border-box; }
+		.token-usage-wrap { margin-left: auto; position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+		.token-usage { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 46px; height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 600; letter-spacing: 0.2px; user-select: none; }
+		.token-usage-icon { width: 10px; height: 10px; display: block; opacity: 0.9; }
+		.token-usage-icon path { fill: currentColor; }
+		.token-usage-number { line-height: 1; }
+		.token-usage:hover, .token-usage:focus-visible { border-color: var(--vscode-focusBorder); color: var(--vscode-foreground); }
+		.token-usage.loading { opacity: 0.85; }
+		.token-usage-popover { position: absolute; top: calc(100% + 4px); right: 0; min-width: 154px; border: 1px solid var(--vscode-input-border); border-radius: 8px; background: var(--vscode-editorWidget-background); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); padding: 6px 8px; font-size: 11px; color: var(--vscode-descriptionForeground); z-index: 35; }
+		.token-usage-popover[hidden] { display: none; }
+		.token-usage-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; line-height: 1.55; }
+		.token-usage-value { color: var(--vscode-foreground); font-weight: 600; }
+		.context-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; position: relative; }
+		.context-btn { border: 1px solid var(--vscode-button-secondaryBackground); background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+		.context-menu { position: absolute; top: 32px; left: 0; min-width: 180px; border: 1px solid var(--vscode-menu-border); background: var(--vscode-menu-background); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); border-radius: 8px; padding: 6px; z-index: 20; }
+		.context-menu[hidden] { display: none; }
+		.context-menu-item { width: 100%; text-align: left; border: 0; background: transparent; color: var(--vscode-menu-foreground); padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+		.context-menu-item:hover { background: var(--vscode-list-hoverBackground); }
+		.context-list { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+		.inline-confirm { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--vscode-input-border); border-radius: 8px; background: var(--vscode-editorWidget-background); padding: 8px 10px; }
+		.inline-confirm[hidden] { display: none; }
+		.inline-confirm-text { font-size: 12px; color: var(--vscode-foreground); line-height: 1.4; }
+		.inline-confirm-meta { margin-top: 4px; font-size: 11px; color: var(--vscode-descriptionForeground); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+		.inline-confirm-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editor-background); color: var(--vscode-descriptionForeground); font-size: 11px; }
+		.inline-delta-add { color: var(--vscode-terminal-ansiGreen); border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 35%, var(--vscode-input-border)); }
+		.inline-delta-remove { color: var(--vscode-terminal-ansiRed); border-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 35%, var(--vscode-input-border)); }
+		.inline-confirm-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+		.inline-open-file { border: 0; background: transparent; color: var(--vscode-textLink-foreground); font-size: 12px; padding: 0; margin-top: 4px; cursor: pointer; text-decoration: underline; }
+		.inline-open-file[hidden] { display: none; }
+		.inline-file-list { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+		.inline-file-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-editor-background); }
+		.inline-file-main { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+		.inline-file-kind { display: inline-flex; align-items: center; justify-content: center; height: 16px; min-width: 18px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); font-size: 10px; font-weight: 600; letter-spacing: 0.2px; flex-shrink: 0; box-sizing: border-box; }
+		.inline-file-kind-create { color: var(--vscode-terminal-ansiGreen); border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 35%, var(--vscode-input-border)); }
+		.inline-file-kind-delete { color: var(--vscode-terminal-ansiRed); border-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 35%, var(--vscode-input-border)); }
+		.inline-file-kind-modify { color: var(--vscode-terminal-ansiBlue); border-color: color-mix(in srgb, var(--vscode-terminal-ansiBlue) 35%, var(--vscode-input-border)); }
+		.inline-file-kind-append { color: var(--vscode-terminal-ansiYellow); border-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 35%, var(--vscode-input-border)); }
+		.inline-file-link { border: 0; background: transparent; color: var(--vscode-textLink-foreground); padding: 0; font-size: 12px; cursor: pointer; text-align: left; text-decoration: underline; }
+		.inline-file-delta { display: inline-flex; align-items: center; gap: 4px; }
+		.inline-preview { margin-top: 6px; }
+		.inline-preview[hidden] { display: none; }
+		.inline-preview > summary { cursor: pointer; font-size: 12px; color: var(--vscode-descriptionForeground); }
+		.inline-preview > pre { margin: 6px 0 0; border: 1px solid var(--vscode-input-border); border-radius: 6px; background: var(--vscode-textCodeBlock-background); padding: 8px; max-height: 180px; overflow: auto; }
+		.context-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-foreground); border-radius: 999px; padding: 3px 8px; font-size: 12px; max-width: 100%; }
+		.context-chip-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+		.context-remove { border: 0; background: transparent; color: var(--vscode-descriptionForeground); cursor: pointer; padding: 0; line-height: 1; font-size: 13px; }
+		.toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; }
+		.left { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; align-items: flex-start; overflow: visible; }
+		.left-main { display: flex; gap: 6px; width: 100%; min-width: 0; align-items: center; }
+		.agent-controls { display: none; gap: 6px; width: 100%; min-width: 0; align-items: center; flex-wrap: wrap; }
+		.right { display: flex; align-items: center; gap: 6px; }
+		.mode-wrap { position: relative; z-index: 30; }
+		.mode-toggle { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-foreground); border-radius: 999px; padding: 3px 9px; height: 28px; font-size: 12px; cursor: pointer; }
+		.mode-toggle .caret { opacity: 0.8; font-size: 10px; }
+		.mode-menu { position: absolute; left: 0; top: calc(100% + 6px); min-width: 132px; border: 1px solid var(--vscode-menu-border); background: var(--vscode-menu-background); border-radius: 8px; padding: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); z-index: 60; }
+		.mode-menu[hidden] { display: none; }
+		.mode-item { width: 100%; border: 1px solid transparent; background: transparent; color: var(--vscode-menu-foreground); text-align: left; border-radius: 6px; padding: 6px 8px; font-size: 12px; cursor: pointer; }
+		.mode-item:hover { background: var(--vscode-list-hoverBackground); border-color: var(--vscode-focusBorder); }
+		.mode-item.active { background: var(--vscode-list-activeSelectionBackground); border-color: var(--vscode-focusBorder); color: var(--vscode-list-activeSelectionForeground); }
+		.mode-item .desc { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px; }
+		.mode-item.active .desc { color: var(--vscode-list-activeSelectionForeground); opacity: 0.9; }
+		#modelSelect { min-width: 154px; max-width: 250px; height: 28px; border: 1px solid var(--vscode-input-border); background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); padding: 4px 6px; }
+		#configureToolsBtn { display: none; align-items: center; justify-content: center; width: 28px; height: 28px; border: 1px solid var(--vscode-input-border); background: var(--vscode-editorWidget-background); color: var(--vscode-descriptionForeground); border-radius: 6px; padding: 0; cursor: pointer; }
+		#configureToolsBtn:hover { color: var(--vscode-foreground); border-color: var(--vscode-focusBorder); }
+		#configureToolsBtn svg { width: 14px; height: 14px; display: block; }
+		#agentSelect { min-width: 170px; max-width: 280px; height: 28px; border: 1px solid var(--vscode-input-border); background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); padding: 4px 6px; display: none; }
+		.status { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid var(--vscode-input-border); border-radius: 999px; color: var(--vscode-descriptionForeground); user-select: none; background: transparent; padding: 0; margin-left: 2px; }
+		.status-icon { width: 14px; height: 14px; display: block; }
+		.status-icon .core,
+		.status-icon .ring { fill: currentColor; }
+		.status-icon .stop { fill: currentColor; }
+		.status-ready { color: var(--vscode-terminal-ansiMagenta); }
+		.status-thinking { color: var(--vscode-terminal-ansiBlue); }
+		.status-thinking .status-icon { animation: eh-spin 1s linear infinite; }
+		.status-idle { color: var(--vscode-descriptionForeground); opacity: 0.8; }
+		.status-cancelable { cursor: pointer; }
+		.status-cancelable:hover { border-color: var(--vscode-focusBorder); }
+		.status-cancelable.status-thinking .status-icon { animation: none; }
+
+		@keyframes eh-spin {
+			from { transform: rotate(0deg); }
+			to { transform: rotate(360deg); }
+		}
+		.row { margin-top: 8px; display: flex; gap: 8px; }
+		button { border: 1px solid var(--vscode-button-border); background: var(--vscode-button-background); color: var(--vscode-button-foreground); padding: 6px 10px; cursor: pointer; border-radius: 6px; }
+		button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+		button:disabled { opacity: 0.6; cursor: not-allowed; }
+		#ask { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: none; background: var(--vscode-foreground); color: var(--vscode-editor-background); transition: background 0.15s, opacity 0.15s; flex-shrink: 0; }
+		#ask:not(:disabled):hover { background: var(--vscode-textLink-foreground); }
+		#ask:disabled { background: var(--vscode-input-border); opacity: 1; }
+		#ask svg { width: 16px; height: 16px; display: block; }
+  </style>
+</head>
+<body>
+	<div class="session-bar">
+		<select id="sessionSelect" title="Switch session"></select>
+		<button id="newSessionBtn" title="New session" aria-label="New session">＋ New Session</button>
+	</div>
+  <div id="messages"></div>
+	<div id="inlineEditConfirm" class="inline-confirm" hidden>
+		<div>
+			<div id="inlineEditConfirmText" class="inline-confirm-text">已执行文件修改，是否保留该改动？</div>
+			<div id="inlineEditConfirmMeta" class="inline-confirm-meta">
+				<span id="inlineEditFileCount">1 个文件</span>
+				<span id="inlineEditMode" class="inline-confirm-badge" hidden>replace</span>
+				<span id="inlineEditAdded" class="inline-confirm-badge inline-delta-add" hidden>+0</span>
+				<span id="inlineEditRemoved" class="inline-confirm-badge inline-delta-remove" hidden>-0</span>
+			</div>
+			<button id="inlineEditOpenFile" class="inline-open-file" hidden>打开文件</button>
+			<div id="inlineEditFileList" class="inline-file-list" hidden></div>
+			<details id="inlineEditPreview" class="inline-preview" hidden>
+				<summary>查看变更预览</summary>
+				<pre><code id="inlineEditPreviewText"></code></pre>
+			</details>
+		</div>
+		<div class="inline-confirm-actions">
+			<button id="inlineEditKeep">保留</button>
+			<button id="inlineEditCancel" class="secondary">取消</button>
+		</div>
+	</div>
+	<div class="composer">
+		<div class="context-tools">
+			<button id="contextMenuToggle" class="context-btn" title="Add context">＋ Add Context</button>
+			<div id="contextMenu" class="context-menu" hidden>
+				<button class="context-menu-item" data-action="code">📎 Code / File...</button>
+				<button class="context-menu-item" data-action="screenshot">🖼 Screenshot...</button>
+			</div>
+			<button id="clearContexts" class="context-btn" title="Clear all attached contexts">🗑 Clear</button>
+			<div id="tokenUsageWrap" class="token-usage-wrap">
+				<button id="tokenUsage" class="token-usage" title="Token usage" aria-label="Token usage"><svg class="token-usage-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8.67 1.25 3.6 8.18h3.04L5.7 14.75l6.72-8.28H9.33l-.66-5.22Z"/></svg><span id="tokenUsageNumber" class="token-usage-number">--</span></button>
+				<div id="tokenUsagePopover" class="token-usage-popover" hidden>
+					<div class="token-usage-row"><span>Total</span><span id="tokenUsageTotal" class="token-usage-value">--</span></div>
+					<div class="token-usage-row"><span>Input</span><span id="tokenUsageInput" class="token-usage-value">--</span></div>
+					<div class="token-usage-row"><span>Output</span><span id="tokenUsageOutput" class="token-usage-value">--</span></div>
+					<div class="token-usage-row"><span>Calls</span><span id="tokenUsageCalls" class="token-usage-value">--</span></div>
+					<div class="token-usage-row"><span>Mode</span><span id="tokenUsageMode" class="token-usage-value">--</span></div>
+				</div>
+			</div>
+		</div>
+		<div id="contextList" class="context-list"></div>
+		<div class="input-wrap">
+			<textarea id="question" placeholder="Ask EnoHacker... (Enter to send, Shift+Enter for newline)"></textarea>
+		</div>
+		<div class="toolbar">
+			<div class="left">
+				<div class="left-main">
+					<div class="mode-wrap">
+						<button id="modeToggle" class="mode-toggle" title="Select chat mode">
+							<span id="modeLabel">Agent</span>
+							<span class="caret">▼</span>
+						</button>
+						<div id="modeMenu" class="mode-menu" hidden>
+							<button class="mode-item" data-mode="ask">
+								Ask
+								<span class="desc">Standard chat</span>
+							</button>
+							<button class="mode-item active" data-mode="agent">
+								Agent
+								<span class="desc">Multi-step task mode</span>
+							</button>
+						</div>
+					</div>
+					<select id="modelSelect"></select>
+				</div>
+				<div id="agentControls" class="agent-controls">
+					<select id="agentSelect" title="Select agent"></select>
+					<button id="configureToolsBtn" title="Configure Tools" aria-label="Configure Tools">
+						<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+							<path d="M2.25 3.5h6.5M10.75 3.5h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+							<circle cx="9.75" cy="3.5" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+							<path d="M2.25 8h3M7.25 8h6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+							<circle cx="5.75" cy="8" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+							<path d="M2.25 12.5h6.5M10.75 12.5h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+							<circle cx="9.75" cy="12.5" r="1.5" stroke="currentColor" stroke-width="1.5"/>
+						</svg>
+					</button>
+				</div>
+			</div>
+			<div class="right">
+				<button class="status status-ready" id="statusIconWrap" title="Ready" aria-label="Status">
+					<svg class="status-icon" id="statusIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+						<path class="ring" d="M12 1.5 14.8 6l4.7.8-3.3 3.2.8 4.6L12 12.9 7 14.6l.9-4.6L4.5 6.8 9.2 6 12 1.5Z"/>
+						<circle class="core" cx="12" cy="12" r="2.3"/>
+					</svg>
+				</button>
+				<button id="ask" title="Send (Enter)">
+					<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+						<path d="M1.5 1.5l13 6.5-13 6.5V9.5l9-2-9-2V1.5z"/>
+					</svg>
+				</button>
+			</div>
+		</div>
+	</div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+		const sessionSelect = document.getElementById('sessionSelect');
+		const newSessionBtn = document.getElementById('newSessionBtn');
+    const messages = document.getElementById('messages');
+    const question = document.getElementById('question');
+		const tokenUsageWrap = document.getElementById('tokenUsageWrap');
+		const tokenUsage = document.getElementById('tokenUsage');
+		const tokenUsageNumber = document.getElementById('tokenUsageNumber');
+		const tokenUsagePopover = document.getElementById('tokenUsagePopover');
+		const tokenUsageTotal = document.getElementById('tokenUsageTotal');
+		const tokenUsageInput = document.getElementById('tokenUsageInput');
+		const tokenUsageOutput = document.getElementById('tokenUsageOutput');
+		const tokenUsageCalls = document.getElementById('tokenUsageCalls');
+		const tokenUsageMode = document.getElementById('tokenUsageMode');
+		const modelSelect = document.getElementById('modelSelect');
+		const agentControls = document.getElementById('agentControls');
+		const configureToolsBtn = document.getElementById('configureToolsBtn');
+		const agentSelect = document.getElementById('agentSelect');
+		const askButton = document.getElementById('ask');
+		const modeToggle = document.getElementById('modeToggle');
+		const modeLabel = document.getElementById('modeLabel');
+		const modeMenu = document.getElementById('modeMenu');
+		const statusIconWrap = document.getElementById('statusIconWrap');
+		const statusIcon = document.getElementById('statusIcon');
+		const contextList = document.getElementById('contextList');
+		const inlineEditConfirm = document.getElementById('inlineEditConfirm');
+		const inlineEditConfirmText = document.getElementById('inlineEditConfirmText');
+		const inlineEditFileCount = document.getElementById('inlineEditFileCount');
+		const inlineEditMode = document.getElementById('inlineEditMode');
+		const inlineEditAdded = document.getElementById('inlineEditAdded');
+		const inlineEditRemoved = document.getElementById('inlineEditRemoved');
+		const inlineEditOpenFile = document.getElementById('inlineEditOpenFile');
+		const inlineEditFileList = document.getElementById('inlineEditFileList');
+		const inlineEditPreview = document.getElementById('inlineEditPreview');
+		const inlineEditPreviewText = document.getElementById('inlineEditPreviewText');
+		const inlineEditKeep = document.getElementById('inlineEditKeep');
+		const inlineEditCancel = document.getElementById('inlineEditCancel');
+		const contextMenuToggle = document.getElementById('contextMenuToggle');
+		const contextMenu = document.getElementById('contextMenu');
+		const clearContextsBtn = document.getElementById('clearContexts');
+		let waitingAssistant = false;
+		let lastValidModel = '';
+		let currentMode = 'agent';
+		let lastValidAgent = '';
+		let agentToolsById = {};
+		let selectedTools = [];
+		let currentSessionId = '';
+		const sessionTranscripts = {};
+		let pendingInlineEditConfirmId = '';
+		let pendingInlineEditPath = '';
+		let pendingInlineEditMode = '';
+		let pendingInlineEditPreview = '';
+		let pendingInlineEditFileCount = 1;
+		let pendingInlineEditAdded = 0;
+		let pendingInlineEditRemoved = 0;
+		let pendingInlineEditFiles = [];
+		let activeAssistantContent = null;
+		let activeAssistantText = '';
+		let tokenUsageValue = null;
+		const READY_STATUS_ICON = '<path class="ring" d="M12 1.5 14.8 6l4.7.8-3.3 3.2.8 4.6L12 12.9 7 14.6l.9-4.6L4.5 6.8 9.2 6 12 1.5Z"/><circle class="core" cx="12" cy="12" r="2.3"/>';
+		const THINKING_STATUS_ICON = '<rect class="stop" x="7" y="7" width="10" height="10" rx="2"/>';
+
+		function formatTokenNumber(value) {
+			const count = Number(value || 0);
+			if (!Number.isFinite(count) || count <= 0) {
+				return '0';
+			}
+
+			return Math.floor(count).toLocaleString('en-US');
+		}
+
+		function renderTokenUsage() {
+			if (!tokenUsage) {
+				return;
+			}
+
+			if (!tokenUsageValue) {
+				if (tokenUsageNumber) {
+					tokenUsageNumber.textContent = '--';
+				}
+				tokenUsage.classList.remove('loading');
+				tokenUsage.title = 'Token usage';
+				if (tokenUsageTotal) {
+					tokenUsageTotal.textContent = '--';
+				}
+				if (tokenUsageInput) {
+					tokenUsageInput.textContent = '--';
+				}
+				if (tokenUsageOutput) {
+					tokenUsageOutput.textContent = '--';
+				}
+				if (tokenUsageCalls) {
+					tokenUsageCalls.textContent = '--';
+				}
+				if (tokenUsageMode) {
+					tokenUsageMode.textContent = '--';
+				}
+				return;
+			}
+
+			if (tokenUsageValue.loading) {
+				if (tokenUsageNumber) {
+					tokenUsageNumber.textContent = '…';
+				}
+				tokenUsage.classList.add('loading');
+				tokenUsage.title = 'Token usage is being calculated';
+				if (tokenUsageMode) {
+					tokenUsageMode.textContent = 'Calculating';
+				}
+				return;
+			}
+
+			const total = formatTokenNumber(tokenUsageValue.totalTokens);
+			const input = formatTokenNumber(tokenUsageValue.inputTokens);
+			const output = formatTokenNumber(tokenUsageValue.outputTokens);
+			const calls = formatTokenNumber(tokenUsageValue.calls);
+			const mode = tokenUsageValue.approximate ? 'Estimated' : 'Actual';
+			if (tokenUsageNumber) {
+				tokenUsageNumber.textContent = total;
+			}
+			tokenUsage.classList.remove('loading');
+			tokenUsage.title = `Total ${total} · Input ${input} · Output ${output} · Calls ${calls} · ${mode}`;
+			if (tokenUsageTotal) {
+				tokenUsageTotal.textContent = total;
+			}
+			if (tokenUsageInput) {
+				tokenUsageInput.textContent = input;
+			}
+			if (tokenUsageOutput) {
+				tokenUsageOutput.textContent = output;
+			}
+			if (tokenUsageCalls) {
+				tokenUsageCalls.textContent = calls;
+			}
+			if (tokenUsageMode) {
+				tokenUsageMode.textContent = mode;
+			}
+		}
+
+		function setTokenUsagePopoverVisible(visible) {
+			if (!tokenUsagePopover) {
+				return;
+			}
+
+			tokenUsagePopover.hidden = !visible;
+		}
+
+		function setTokenUsageLoading() {
+			tokenUsageValue = { loading: true };
+			renderTokenUsage();
+		}
+
+		function resetTokenUsage() {
+			tokenUsageValue = null;
+			renderTokenUsage();
+		}
+
+		function updateTokenUsage(payload) {
+			tokenUsageValue = {
+				loading: false,
+				inputTokens: Number(payload?.inputTokens || 0),
+				outputTokens: Number(payload?.outputTokens || 0),
+				totalTokens: Number(payload?.totalTokens || 0),
+				calls: Number(payload?.calls || 0),
+				approximate: Boolean(payload?.approximate)
+			};
+			renderTokenUsage();
+		}
+
+		function append(role, text) {
+			const row = document.createElement('div');
+			row.className = 'msg-row ' + role;
+
+			const avatar = document.createElement('div');
+			avatar.className = 'msg-avatar';
+			avatar.textContent = role === 'user' ? 'You' : 'EH';
+
+			const card = document.createElement('div');
+			card.className = 'msg-card';
+
+			const head = document.createElement('div');
+			head.className = 'msg-head';
+			head.textContent = role === 'user' ? 'You' : 'EnoHacker';
+
+			const content = document.createElement('div');
+			content.className = 'msg-content';
+			setMessageContent(content, role, text);
+
+			card.appendChild(head);
+			card.appendChild(content);
+			row.appendChild(avatar);
+			row.appendChild(card);
+			messages.appendChild(row);
+			messages.scrollTop = messages.scrollHeight;
+			return content;
+		}
+
+		function saveCurrentTranscript() {
+			if (!currentSessionId) {
+				return;
+			}
+
+			sessionTranscripts[currentSessionId] = messages.innerHTML;
+		}
+
+		function restoreTranscript(sessionId) {
+			messages.innerHTML = sessionTranscripts[sessionId] || '';
+			messages.scrollTop = messages.scrollHeight;
+		}
+
+		function appendCheckpointAction(checkpointId, fileCount) {
+			const row = document.createElement('div');
+			row.className = 'msg-row assistant';
+
+			const avatar = document.createElement('div');
+			avatar.className = 'msg-avatar';
+			avatar.textContent = 'EH';
+
+			const card = document.createElement('div');
+			card.className = 'msg-card';
+
+			const head = document.createElement('div');
+			head.className = 'msg-head';
+			head.textContent = 'Checkpoint';
+
+			const content = document.createElement('div');
+			content.className = 'msg-content';
+
+			const summary = document.createElement('p');
+			summary.textContent = `Agent created a checkpoint for ${fileCount} file(s).`;
+
+			const action = document.createElement('button');
+			action.className = 'secondary';
+			action.textContent = 'Restore Checkpoint';
+			action.addEventListener('click', () => {
+				action.disabled = true;
+				vscode.postMessage({ type: 'restoreCheckpoint', checkpointId });
+			});
+
+			content.appendChild(summary);
+			content.appendChild(action);
+			card.appendChild(head);
+			card.appendChild(content);
+			row.appendChild(avatar);
+			row.appendChild(card);
+			messages.appendChild(row);
+			messages.scrollTop = messages.scrollHeight;
+		}
+
+		function resolveInlineFileMode(mode) {
+			const normalized = String(mode || '').trim().toLowerCase();
+			if (normalized === 'create') {
+				return { label: 'C', tone: 'create' };
+			}
+
+			if (normalized === 'delete') {
+				return { label: 'D', tone: 'delete' };
+			}
+
+			if (normalized === 'append') {
+				return { label: 'A', tone: 'append' };
+			}
+
+			if (normalized === 'replace' || normalized === 'edit' || normalized === 'modify') {
+				return { label: 'M', tone: 'modify' };
+			}
+
+			if (!normalized) {
+				return { label: 'M', tone: 'modify' };
+			}
+
+			return { label: 'M', tone: 'modify' };
+		}
+
+		function appendEditConfirmationAction(confirmId, filePath, options) {
+			pendingInlineEditConfirmId = String(confirmId || '');
+			pendingInlineEditPath = String(filePath || '');
+			pendingInlineEditMode = String(options?.mode || '');
+			pendingInlineEditPreview = String(options?.preview || '');
+			pendingInlineEditFileCount = Number(options?.fileCount || 1);
+			pendingInlineEditAdded = Number(options?.addedLines || 0);
+			pendingInlineEditRemoved = Number(options?.removedLines || 0);
+			pendingInlineEditFiles = Array.isArray(options?.files) ? options.files : [];
+			if (inlineEditConfirmText) {
+				const summary = String(options?.summary || '').trim();
+				if (summary) {
+					inlineEditConfirmText.textContent = `${summary} 是否保留该改动？`;
+				} else {
+					inlineEditConfirmText.textContent = filePath
+						? `已修改文件：${filePath}。是否保留该改动？`
+						: '已执行文件修改。是否保留该改动？';
+				}
+			}
+			if (inlineEditFileCount) {
+				inlineEditFileCount.textContent = `${pendingInlineEditFileCount} 个文件`;
+			}
+			if (inlineEditMode) {
+				inlineEditMode.hidden = !pendingInlineEditMode;
+				if (pendingInlineEditMode) {
+					inlineEditMode.textContent = pendingInlineEditMode;
+				}
+			}
+			if (inlineEditAdded) {
+				inlineEditAdded.hidden = pendingInlineEditAdded <= 0;
+				if (pendingInlineEditAdded > 0) {
+					inlineEditAdded.textContent = `+${pendingInlineEditAdded}`;
+				}
+			}
+			if (inlineEditRemoved) {
+				inlineEditRemoved.hidden = pendingInlineEditRemoved <= 0;
+				if (pendingInlineEditRemoved > 0) {
+					inlineEditRemoved.textContent = `-${pendingInlineEditRemoved}`;
+				}
+			}
+			if (inlineEditOpenFile) {
+				inlineEditOpenFile.hidden = !pendingInlineEditPath;
+			}
+			if (inlineEditFileList) {
+				inlineEditFileList.innerHTML = '';
+				if (pendingInlineEditFiles.length > 0) {
+					inlineEditFileList.hidden = false;
+					pendingInlineEditFiles.forEach((item) => {
+						const path = String(item.path || '').trim();
+						if (!path) {
+							return;
+						}
+
+						const added = Number(item.addedLines || 0);
+						const removed = Number(item.removedLines || 0);
+						const modeInfo = resolveInlineFileMode(item.mode);
+						const row = document.createElement('div');
+						row.className = 'inline-file-item';
+						const fileMain = document.createElement('div');
+						fileMain.className = 'inline-file-main';
+						const kind = document.createElement('span');
+						kind.className = `inline-file-kind inline-file-kind-${modeInfo.tone}`;
+						kind.textContent = modeInfo.label;
+						const link = document.createElement('button');
+						link.className = 'inline-file-link';
+						link.textContent = path;
+						link.addEventListener('click', () => {
+							vscode.postMessage({ type: 'openFileFromConfirm', path });
+						});
+
+						const delta = document.createElement('div');
+						delta.className = 'inline-file-delta';
+						if (added > 0) {
+							const addBadge = document.createElement('span');
+							addBadge.className = 'inline-confirm-badge inline-delta-add';
+							addBadge.textContent = `+${added}`;
+							delta.appendChild(addBadge);
+						}
+						if (removed > 0) {
+							const removeBadge = document.createElement('span');
+							removeBadge.className = 'inline-confirm-badge inline-delta-remove';
+							removeBadge.textContent = `-${removed}`;
+							delta.appendChild(removeBadge);
+						}
+
+						fileMain.appendChild(kind);
+						fileMain.appendChild(link);
+						row.appendChild(fileMain);
+						row.appendChild(delta);
+						inlineEditFileList.appendChild(row);
+					});
+				} else {
+					inlineEditFileList.hidden = true;
+				}
+			}
+			if (inlineEditPreview && inlineEditPreviewText) {
+				inlineEditPreview.hidden = !pendingInlineEditPreview;
+				inlineEditPreview.open = false;
+				inlineEditPreviewText.textContent = pendingInlineEditPreview;
+			}
+			if (inlineEditKeep) {
+				inlineEditKeep.disabled = false;
+			}
+			if (inlineEditCancel) {
+				inlineEditCancel.disabled = false;
+			}
+			if (inlineEditConfirm) {
+				inlineEditConfirm.hidden = false;
+			}
+		}
+
+		function hideInlineEditConfirmation() {
+			pendingInlineEditConfirmId = '';
+			pendingInlineEditPath = '';
+			pendingInlineEditMode = '';
+			pendingInlineEditPreview = '';
+			pendingInlineEditFileCount = 1;
+			pendingInlineEditAdded = 0;
+			pendingInlineEditRemoved = 0;
+			pendingInlineEditFiles = [];
+			if (inlineEditOpenFile) {
+				inlineEditOpenFile.hidden = true;
+			}
+			if (inlineEditMode) {
+				inlineEditMode.hidden = true;
+			}
+			if (inlineEditFileList) {
+				inlineEditFileList.hidden = true;
+				inlineEditFileList.innerHTML = '';
+			}
+			if (inlineEditAdded) {
+				inlineEditAdded.hidden = true;
+			}
+			if (inlineEditRemoved) {
+				inlineEditRemoved.hidden = true;
+			}
+			if (inlineEditPreview) {
+				inlineEditPreview.hidden = true;
+				inlineEditPreview.open = false;
+			}
+			if (inlineEditPreviewText) {
+				inlineEditPreviewText.textContent = '';
+			}
+			if (inlineEditKeep) {
+				inlineEditKeep.disabled = false;
+			}
+			if (inlineEditCancel) {
+				inlineEditCancel.disabled = false;
+			}
+			if (inlineEditConfirm) {
+				inlineEditConfirm.hidden = true;
+			}
+		}
+
+		function appendExecuteConfirmationAction(confirmId, command) {
+			const row = document.createElement('div');
+			row.className = 'msg-row assistant';
+
+			const avatar = document.createElement('div');
+			avatar.className = 'msg-avatar';
+			avatar.textContent = 'EH';
+
+			const card = document.createElement('div');
+			card.className = 'msg-card';
+
+			const head = document.createElement('div');
+			head.className = 'msg-head';
+			head.textContent = '命令执行确认';
+
+			const content = document.createElement('div');
+			content.className = 'msg-content';
+
+			const summary = document.createElement('p');
+			summary.textContent = `是否允许执行命令：${command || 'pwd'}`;
+
+			const actions = document.createElement('div');
+			actions.className = 'row';
+
+			const allowButton = document.createElement('button');
+			allowButton.textContent = '允许';
+
+			const denyButton = document.createElement('button');
+			denyButton.className = 'secondary';
+			denyButton.textContent = '不允许';
+
+			const submitDecision = (decision) => {
+				allowButton.disabled = true;
+				denyButton.disabled = true;
+				vscode.postMessage({ type: 'executeConfirmResponse', confirmId, decision });
+				startAssistantContinuation();
+			};
+
+			allowButton.addEventListener('click', () => submitDecision('allow'));
+			denyButton.addEventListener('click', () => submitDecision('deny'));
+
+			actions.appendChild(allowButton);
+			actions.appendChild(denyButton);
+			content.appendChild(summary);
+			content.appendChild(actions);
+			card.appendChild(head);
+			card.appendChild(content);
+			row.appendChild(avatar);
+			row.appendChild(card);
+			messages.appendChild(row);
+			messages.scrollTop = messages.scrollHeight;
+		}
+
+		function escapeHtml(value) {
+			return String(value)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#39;');
+		}
+
+		function renderInlineMarkdown(value) {
+			let text = escapeHtml(value);
+			text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+			text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+			text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+			text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+			return text;
+		}
+
+		function renderMarkdown(value) {
+			const source = String(value || '').replace(/\r\n/g, '\n');
+			const sections = source.split(/```/);
+			const htmlParts = [];
+			let cellCounter = 0;
+
+			for (let index = 0; index < sections.length; index += 1) {
+				const part = sections[index];
+				if (index % 2 === 1) {
+					const lines = part.split('\n');
+					let code = part;
+					if (lines.length > 1 && /^[a-zA-Z0-9_+-]+$/.test(lines[0].trim())) {
+						code = lines.slice(1).join('\n');
+					}
+					const lineCount = code.split('\n').length;
+					const shouldFold = code.length > 900 || lineCount > 18;
+					if (shouldFold) {
+						htmlParts.push('<details class="log-fold"><summary>展开日志（' + lineCount + ' 行）</summary><pre><code>' + escapeHtml(code) + '</code></pre></details>');
+					} else {
+						htmlParts.push('<pre><code>' + escapeHtml(code) + '</code></pre>');
+					}
+					continue;
+				}
+
+				const lines = part.split('\n');
+				let inUl = false;
+				let inOl = false;
+
+				const closeLists = () => {
+					if (inUl) {
+						htmlParts.push('</ul>');
+						inUl = false;
+					}
+					if (inOl) {
+						htmlParts.push('</ol>');
+						inOl = false;
+					}
+				};
+
+				for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+					const rawLine = lines[lineIndex];
+					const line = rawLine.trim();
+					if (!line) {
+						closeLists();
+						continue;
+					}
+
+					const step = /^-\s+step\s+(\d+):\s+(.+)$/i.exec(line);
+					if (step) {
+						closeLists();
+						const stepTitle = `Step ${step[1]} · ${step[2]}`;
+						const cellId = ++cellCounter;
+						const detailItems = [];
+						let hasFailure = false;
+						let cursor = lineIndex + 1;
+						while (cursor < lines.length) {
+							const candidateRaw = lines[cursor];
+							const detail = /^\s+-\s+(.+)$/.exec(candidateRaw);
+							if (!detail) {
+								if (!candidateRaw.trim()) {
+									cursor += 1;
+									continue;
+								}
+								break;
+							}
+
+							if (/^result:\s*❌/i.test(detail[1].trim())) {
+								hasFailure = true;
+							}
+
+							detailItems.push('<p>' + renderInlineMarkdown(detail[1]) + '</p>');
+							cursor += 1;
+						}
+
+						const body = detailItems.length > 0 ? `<div class="agent-step-body">${detailItems.join('')}</div>` : '';
+						const openAttr = hasFailure ? ' open' : '';
+						htmlParts.push(`<details class="agent-step"${openAttr}><summary><span class="cell-tag">Cell ${cellId}</span><span class="cell-title">${renderInlineMarkdown(stepTitle)}</span></summary>${body}</details>`);
+						lineIndex = cursor - 1;
+						continue;
+					}
+
+					const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+					if (heading) {
+						closeLists();
+						const level = heading[1].length;
+						const title = renderInlineMarkdown(heading[2]);
+						if (level <= 3) {
+							htmlParts.push('<div class="nb-section"><p><strong>' + title + '</strong></p></div>');
+						} else {
+							htmlParts.push('<h' + level + '>' + title + '</h' + level + '>');
+						}
+						continue;
+					}
+
+					const ul = /^[-*+]\s+(.+)$/.exec(line);
+					if (ul) {
+						if (inOl) {
+							htmlParts.push('</ol>');
+							inOl = false;
+						}
+						if (!inUl) {
+							htmlParts.push('<ul>');
+							inUl = true;
+						}
+						htmlParts.push('<li>' + renderInlineMarkdown(ul[1]) + '</li>');
+						continue;
+					}
+
+					const ol = /^\d+\.\s+(.+)$/.exec(line);
+					if (ol) {
+						if (inUl) {
+							htmlParts.push('</ul>');
+							inUl = false;
+						}
+						if (!inOl) {
+							htmlParts.push('<ol>');
+							inOl = true;
+						}
+						htmlParts.push('<li>' + renderInlineMarkdown(ol[1]) + '</li>');
+						continue;
+					}
+
+					const quote = /^>\s?(.+)$/.exec(line);
+					if (quote) {
+						closeLists();
+						htmlParts.push('<blockquote>' + renderInlineMarkdown(quote[1]) + '</blockquote>');
+						continue;
+					}
+
+					closeLists();
+					htmlParts.push('<p>' + renderInlineMarkdown(line) + '</p>');
+				}
+
+				closeLists();
+			}
+
+			return htmlParts.join('');
+		}
+
+		function setMessageContent(element, role, text) {
+			if (role === 'assistant') {
+				element.innerHTML = renderMarkdown(text || '');
+				return;
+			}
+
+			element.textContent = text || '';
+		}
+
+		function startAssistantMessage() {
+			activeAssistantText = '';
+			activeAssistantContent = append('assistant', '');
+		}
+
+		function startAssistantContinuation() {
+			activeAssistantText = '';
+			activeAssistantContent = append('assistant', '');
+		}
+
+		function appendAssistantChunk(text) {
+			if (!activeAssistantContent) {
+				startAssistantMessage();
+			}
+
+			activeAssistantText += text;
+			setMessageContent(activeAssistantContent, 'assistant', activeAssistantText);
+			messages.scrollTop = messages.scrollHeight;
+		}
+
+		function hasAgentStepLogs(text) {
+			return /(^|\n)-\s+step\s+\d+:/i.test(String(text || ''));
+		}
+
+		function mergeAgentTraceAndFinal(traceText, finalText) {
+			const trace = String(traceText || '').trim();
+			const final = String(finalText || '').trim();
+			if (!trace) {
+				return final;
+			}
+
+			if (!final) {
+				return trace;
+			}
+
+			if (trace.includes(final)) {
+				return trace;
+			}
+
+			return `${trace}\n\n${final}`;
+		}
+
+		function finishAssistantMessage(finalText) {
+			if (!activeAssistantContent) {
+				activeAssistantContent = append('assistant', finalText || '');
+				activeAssistantText = finalText || '';
+			} else if (typeof finalText === 'string') {
+				if (hasAgentStepLogs(activeAssistantText)) {
+					activeAssistantText = mergeAgentTraceAndFinal(activeAssistantText, finalText);
+				} else {
+					activeAssistantText = finalText;
+				}
+				setMessageContent(activeAssistantContent, 'assistant', activeAssistantText);
+			}
+
+			activeAssistantContent = null;
+			activeAssistantText = '';
+			hideInlineEditConfirmation();
+			waitingAssistant = false;
+			refreshAskState();
+		}
+
+		function summarizeTools(tools) {
+			if (!Array.isArray(tools) || tools.length === 0) {
+				return 'Tools: default';
+			}
+
+			if (tools.length <= 2) {
+				return 'Tools: ' + tools.join(', ');
+			}
+
+			return 'Tools: ' + tools[0] + ', ' + tools[1] + ' +' + (tools.length - 2);
+		}
+
+		function refreshAgentToolsButton() {
+			if (!configureToolsBtn) {
+				return;
+			}
+
+			if (currentMode !== 'agent') {
+				configureToolsBtn.title = 'Configure Tools';
+				return;
+			}
+
+			const selectedId = agentSelect?.value || '';
+			const fallback = Array.isArray(agentToolsById[selectedId]) ? agentToolsById[selectedId] : [];
+			const tools = Array.isArray(selectedTools) && selectedTools.length > 0 ? selectedTools : fallback;
+			configureToolsBtn.title = tools.length > 0
+				? (`Configure Tools (${tools.length}) · Selected: ${tools.join(', ')}`)
+				: 'Configure Tools';
+		}
+
+		function setModeMenuOpen(open) {
+			if (!modeMenu) {
+				return;
+			}
+
+			modeMenu.hidden = !open;
+		}
+
+		function setMode(mode) {
+			currentMode = mode === 'agent' ? 'agent' : 'ask';
+			if (modeLabel) {
+				modeLabel.textContent = currentMode === 'agent' ? 'Agent' : 'Ask';
+			}
+
+			modeMenu?.querySelectorAll('.mode-item[data-mode]').forEach((item) => {
+				const isActive = item.getAttribute('data-mode') === currentMode;
+				item.classList.toggle('active', isActive);
+			});
+
+			const placeholder = currentMode === 'agent'
+				? 'Ask Agent... (Enter to run, Shift+Enter for newline)'
+				: 'Ask EnoHacker... (Enter to send, Shift+Enter for newline)';
+			question.setAttribute('placeholder', placeholder);
+			if (agentControls) {
+				agentControls.style.display = currentMode === 'agent' ? 'flex' : 'none';
+			}
+			if (agentSelect) {
+				agentSelect.style.display = currentMode === 'agent' ? 'inline-block' : 'none';
+			}
+			if (configureToolsBtn) {
+				configureToolsBtn.style.display = currentMode === 'agent' ? 'inline-flex' : 'none';
+			}
+			refreshAgentToolsButton();
+			refreshAskState();
+		}
+
+		function setStatus(type, title) {
+			if (!statusIconWrap) {
+				return;
+			}
+
+			statusIconWrap.classList.remove('status-ready', 'status-thinking', 'status-idle');
+			statusIconWrap.classList.remove('status-cancelable');
+			if (type === 'thinking') {
+				statusIconWrap.classList.add('status-thinking');
+				statusIconWrap.classList.add('status-cancelable');
+				if (statusIcon) {
+					statusIcon.innerHTML = THINKING_STATUS_ICON;
+				}
+			} else if (type === 'idle') {
+				statusIconWrap.classList.add('status-idle');
+				if (statusIcon) {
+					statusIcon.innerHTML = READY_STATUS_ICON;
+				}
+			} else {
+				statusIconWrap.classList.add('status-ready');
+				if (statusIcon) {
+					statusIcon.innerHTML = READY_STATUS_ICON;
+				}
+			}
+
+			statusIconWrap.title = title;
+		}
+
+		function contextIcon(kind) {
+			if (kind === 'selection') {
+				return '✚';
+			}
+
+			if (kind === 'screenshot') {
+				return '🖼';
+			}
+
+			return '📎';
+		}
+
+		function renderContextList(items) {
+			if (!contextList) {
+				return;
+			}
+
+			contextList.innerHTML = '';
+			(items || []).forEach((item) => {
+				const chip = document.createElement('div');
+				chip.className = 'context-chip';
+				chip.title = item.label || '';
+
+				const label = document.createElement('span');
+				label.className = 'context-chip-label';
+				label.textContent = contextIcon(item.kind) + ' ' + (item.label || 'Context');
+
+				const remove = document.createElement('button');
+				remove.className = 'context-remove';
+				remove.textContent = '×';
+				remove.title = 'Remove context';
+				remove.addEventListener('click', () => {
+					vscode.postMessage({ type: 'removeContext', contextId: item.id });
+				});
+
+				chip.appendChild(label);
+				chip.appendChild(remove);
+				contextList.appendChild(chip);
+			});
+		}
+
+		function setContextMenuOpen(open) {
+			if (!contextMenu) {
+				return;
+			}
+
+			contextMenu.hidden = !open;
+		}
+
+		function refreshAskState() {
+			const hasText = question.value.trim().length > 0;
+			const modelReady = modelSelect.value && modelSelect.value !== '__manage__';
+			const agentReady = currentMode !== 'agent' || Boolean(agentSelect?.value);
+			askButton.disabled = waitingAssistant || !hasText || !modelReady || !agentReady;
+			if (waitingAssistant) {
+				setStatus('thinking', currentMode === 'agent' ? 'Agent is running...' : 'EnoHacker is thinking...');
+				return;
+			}
+
+			if (!modelReady) {
+				setStatus('idle', 'Select a model');
+				return;
+			}
+
+			setStatus('ready', 'Ready');
+		}
+
+		function sendMessage() {
+			const text = question.value.trim();
+			if (!text || waitingAssistant || !modelSelect.value || modelSelect.value === '__manage__') {
+				return;
+			}
+
+			append('user', text);
+			activeAssistantContent = null;
+			if (currentMode === 'agent') {
+				vscode.postMessage({ type: 'agent', text, model: modelSelect.value, agentId: agentSelect?.value || '' });
+			} else {
+				vscode.postMessage({ type: 'ask', text, model: modelSelect.value });
+			}
+			question.value = '';
+			waitingAssistant = true;
+			setTokenUsageLoading();
+			refreshAskState();
+		}
+
+		askButton.addEventListener('click', () => {
+			sendMessage();
+		});
+
+		modeToggle?.addEventListener('click', (event) => {
+			event.stopPropagation();
+			setModeMenuOpen(modeMenu ? modeMenu.hidden : false);
+		});
+
+		modeMenu?.addEventListener('click', (event) => {
+			const target = event.target.closest('.mode-item[data-mode]');
+			if (!target) {
+				return;
+			}
+
+			setMode(target.getAttribute('data-mode'));
+			setModeMenuOpen(false);
+		});
+
+		configureToolsBtn?.addEventListener('click', () => {
+			vscode.postMessage({ type: 'openToolsManager' });
+		});
+
+		statusIconWrap?.addEventListener('click', () => {
+			if (!waitingAssistant) {
+				return;
+			}
+
+			vscode.postMessage({ type: 'cancelAsk' });
+			hideInlineEditConfirmation();
+		});
+
+		inlineEditKeep?.addEventListener('click', () => {
+			if (!pendingInlineEditConfirmId) {
+				return;
+			}
+
+			inlineEditKeep.disabled = true;
+			if (inlineEditCancel) {
+				inlineEditCancel.disabled = true;
+			}
+			vscode.postMessage({ type: 'editConfirmResponse', confirmId: pendingInlineEditConfirmId, decision: 'keep' });
+			hideInlineEditConfirmation();
+		});
+
+		inlineEditCancel?.addEventListener('click', () => {
+			if (!pendingInlineEditConfirmId) {
+				return;
+			}
+
+			inlineEditCancel.disabled = true;
+			if (inlineEditKeep) {
+				inlineEditKeep.disabled = true;
+			}
+			vscode.postMessage({ type: 'editConfirmResponse', confirmId: pendingInlineEditConfirmId, decision: 'cancel' });
+			hideInlineEditConfirmation();
+		});
+
+		inlineEditOpenFile?.addEventListener('click', () => {
+			if (!pendingInlineEditPath) {
+				return;
+			}
+
+			vscode.postMessage({ type: 'openFileFromConfirm', path: pendingInlineEditPath });
+		});
+
+		contextMenuToggle.addEventListener('click', (event) => {
+			event.stopPropagation();
+			if (!contextMenu) {
+				return;
+			}
+
+			setContextMenuOpen(contextMenu.hidden);
+		});
+
+		contextMenu?.addEventListener('click', (event) => {
+			const target = event.target.closest('button[data-action]');
+			if (!target) {
+				return;
+			}
+
+			const action = target.getAttribute('data-action');
+			if (action === 'code') {
+				vscode.postMessage({ type: 'addCodeContext' });
+			} else if (action === 'screenshot') {
+				vscode.postMessage({ type: 'addScreenshotContext' });
+			}
+
+			setContextMenuOpen(false);
+		});
+
+		document.addEventListener('click', () => {
+			setContextMenuOpen(false);
+			setModeMenuOpen(false);
+		});
+
+		clearContextsBtn.addEventListener('click', () => {
+			vscode.postMessage({ type: 'clearContexts' });
+		});
+
+		question.addEventListener('input', () => {
+			refreshAskState();
+		});
+
+		tokenUsageWrap?.addEventListener('mouseenter', () => setTokenUsagePopoverVisible(true));
+		tokenUsageWrap?.addEventListener('mouseleave', () => setTokenUsagePopoverVisible(false));
+		tokenUsage?.addEventListener('focus', () => setTokenUsagePopoverVisible(true));
+		tokenUsage?.addEventListener('blur', () => setTokenUsagePopoverVisible(false));
+
+		question.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter' && !event.shiftKey) {
+				event.preventDefault();
+				sendMessage();
+			}
+		});
+
+		sessionSelect?.addEventListener('change', () => {
+			const next = sessionSelect.value;
+			if (!next || next === currentSessionId) {
+				return;
+			}
+
+			saveCurrentTranscript();
+			vscode.postMessage({ type: 'switchSession', sessionId: next });
+		});
+
+		newSessionBtn?.addEventListener('click', () => {
+			saveCurrentTranscript();
+			vscode.postMessage({ type: 'newSession' });
+		});
+
+		modelSelect.addEventListener('change', () => {
+			const model = modelSelect.value;
+			if (!model) {
+				refreshAskState();
+				return;
+			}
+
+			if (model === '__manage__') {
+				vscode.postMessage({ type: 'openModelManager' });
+				modelSelect.value = lastValidModel;
+				refreshAskState();
+				return;
+			}
+
+			lastValidModel = model;
+			vscode.postMessage({ type: 'setModel', model });
+			refreshAskState();
+		});
+
+		agentSelect?.addEventListener('change', () => {
+			if (!agentSelect.value) {
+				refreshAskState();
+				return;
+			}
+
+			lastValidAgent = agentSelect.value;
+			vscode.postMessage({ type: 'setAgent', agentId: agentSelect.value });
+			refreshAgentToolsButton();
+			refreshAskState();
+		});
+
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+			if (message.type === 'assistantStart') {
+				setTokenUsageLoading();
+				startAssistantMessage();
+			}
+
+			if (message.type === 'assistantChunk') {
+				appendAssistantChunk(message.text || '');
+			}
+
+			if (message.type === 'assistantDone') {
+				finishAssistantMessage(message.text || '');
+			}
+
+			if (message.type === 'checkpointAvailable') {
+				appendCheckpointAction(message.checkpointId || '', Number(message.fileCount || 0));
+			}
+
+			if (message.type === 'checkpointRestored') {
+				append('assistant', `✅ Checkpoint restored for ${Number(message.fileCount || 0)} file(s).`);
+			}
+
+			if (message.type === 'editConfirmationRequired') {
+				appendEditConfirmationAction(message.confirmId || '', message.path || '', {
+					mode: message.mode || '',
+					summary: message.summary || '',
+					preview: message.preview || '',
+					fileCount: Number(message.fileCount || 1),
+					addedLines: Number(message.addedLines || 0),
+					removedLines: Number(message.removedLines || 0),
+					files: Array.isArray(message.files) ? message.files : []
+				});
+			}
+
+			if (message.type === 'editCanceled') {
+				append('assistant', `已取消并回滚 ${Number(message.fileCount || 0)} 个文件的改动。`);
+			}
+
+			if (message.type === 'executeConfirmationRequired') {
+				appendExecuteConfirmationAction(message.confirmId || '', message.command || '');
+			}
+
+			if (message.type === 'executeDenied') {
+				append('assistant', `已拒绝执行命令：${message.command || 'pwd'}`);
+			}
+
+      if (message.type === 'assistant') {
+				finishAssistantMessage(message.text || '');
+			}
+
+			if (message.type === 'modelConfig') {
+				modelSelect.innerHTML = '';
+				(message.options || []).forEach((item) => {
+					const option = document.createElement('option');
+					option.value = item.value;
+					option.textContent = item.label;
+					modelSelect.appendChild(option);
+				});
+
+				const manageOption = document.createElement('option');
+				manageOption.value = '__manage__';
+				manageOption.textContent = 'Manage Models...';
+				modelSelect.appendChild(manageOption);
+
+				if (message.selectedModel) {
+					modelSelect.value = message.selectedModel;
+					lastValidModel = message.selectedModel;
+				}
+				refreshAskState();
+      }
+
+			if (message.type === 'agentConfig') {
+				agentSelect.innerHTML = '';
+				agentToolsById = {};
+				selectedTools = Array.isArray(message.selectedTools) ? message.selectedTools : [];
+				(message.agents || []).forEach((item) => {
+					const option = document.createElement('option');
+					option.value = item.id;
+					option.textContent = item.label;
+					agentSelect.appendChild(option);
+					agentToolsById[item.id] = Array.isArray(item.tools) ? item.tools : [];
+				});
+
+				if (message.selectedAgentId) {
+					agentSelect.value = message.selectedAgentId;
+					lastValidAgent = message.selectedAgentId;
+				} else if (!agentSelect.value && agentSelect.options.length > 0) {
+					agentSelect.value = agentSelect.options[0].value;
+					lastValidAgent = agentSelect.value;
+				}
+
+				refreshAgentToolsButton();
+				refreshAskState();
+			}
+
+			if (message.type === 'sessionConfig') {
+				sessionSelect.innerHTML = '';
+				(message.sessions || []).forEach((item) => {
+					const option = document.createElement('option');
+					option.value = item.id;
+					option.textContent = item.title;
+					sessionSelect.appendChild(option);
+				});
+
+				if (message.currentSessionId) {
+					sessionSelect.value = message.currentSessionId;
+					if (!currentSessionId) {
+						currentSessionId = message.currentSessionId;
+					}
+				}
+			}
+
+			if (message.type === 'sessionChanged') {
+				const next = message.sessionId || '';
+				if (!next) {
+					return;
+				}
+
+				saveCurrentTranscript();
+				currentSessionId = next;
+				sessionSelect.value = next;
+				restoreTranscript(next);
+			}
+
+			if (message.type === 'contextItems') {
+				renderContextList(message.items || []);
+			}
+
+			if (message.type === 'tokenUsageReset') {
+				resetTokenUsage();
+			}
+
+			if (message.type === 'tokenUsageUpdate') {
+				updateTokenUsage(message);
+			}
+    });
+
+		vscode.postMessage({ type: 'ready' });
+		setMode('agent');
+		renderTokenUsage();
+		refreshAskState();
+  </script>
+</body>
+</html>

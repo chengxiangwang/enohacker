@@ -1,0 +1,165 @@
+{
+  "name": "enohacker",
+  "publisher": "enohacker",
+  "displayName": "EnoHacker",
+  "description": "Copilot-like VS Code assistant with chat, code suggestions, provider switching, and connection diagnostics.",
+  "license": "MIT",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:enohacker.chatView",
+    "onCommand:enohacker.openChat",
+    "onCommand:enohacker.askFromSelection",
+    "onCommand:enohacker.insertLastSuggestion",
+    "onCommand:enohacker.checkProviderConnection",
+    "onCommand:enohacker.configureModel",
+    "onCommand:enohacker.openModelManager"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "enohacker",
+          "title": "EnoHacker Chat",
+          "icon": "media/enohacker.svg"
+        }
+      ]
+    },
+    "views": {
+      "enohacker": [
+        {
+          "id": "enohacker.chatView",
+          "name": "EnoHacker Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "enohacker.openChat",
+        "title": "EnoHacker: Open Chat"
+      },
+      {
+        "command": "enohacker.askFromSelection",
+        "title": "EnoHacker: Ask From Selection"
+      },
+      {
+        "command": "enohacker.insertLastSuggestion",
+        "title": "EnoHacker: Insert Last Suggestion"
+      },
+      {
+        "command": "enohacker.checkProviderConnection",
+        "title": "EnoHacker: Check Provider Connection"
+      },
+      {
+        "command": "enohacker.configureModel",
+        "title": "EnoHacker: Configure Model"
+      },
+      {
+        "command": "enohacker.openModelManager",
+        "title": "EnoHacker: Open Model Manager"
+      }
+    ],
+    "configuration": {
+      "title": "EnoHacker",
+      "properties": {
+        "enohacker.systemPrompt": {
+          "type": "string",
+          "default": "You are EnoHacker, a concise coding assistant. Prefer practical code-first answers.",
+          "description": "System prompt used when EnoHacker queries a language model if available."
+        },
+        "enohacker.maxResponseLines": {
+          "type": "number",
+          "default": 120,
+          "minimum": 20,
+          "maximum": 500,
+          "description": "Maximum response lines inserted into editor by EnoHacker."
+        },
+        "enohacker.provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "ollama"
+          ],
+          "default": "openai",
+          "description": "Model provider used by EnoHacker."
+        },
+        "enohacker.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "Model name for the selected provider."
+        },
+        "enohacker.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional provider base URL override. Leave empty to use defaults."
+        },
+        "enohacker.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for OpenAI/Anthropic providers. Prefer setting ENOHACKER_API_KEY env var for better security."
+        },
+        "enohacker.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for non-VS Code providers."
+        },
+        "enohacker.customModels": {
+          "type": "object",
+          "default": {
+            "openai": [],
+            "anthropic": [],
+            "ollama": []
+          },
+          "description": "Custom model list per provider. Updated by EnoHacker model manager."
+        },
+        "enohacker.enableDebugLogs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable EnoHacker debug logs in Output panel, including effective provider/model/baseUrl before each Ask request."
+        },
+        "enohacker.activeAgentId": {
+          "type": "string",
+          "default": "enohacker-default",
+          "description": "Currently selected agent id for Agent mode."
+        },
+        "enohacker.customAgents": {
+          "type": "array",
+          "default": [],
+          "description": "Custom pluggable agent definitions. Each item can define id, name, provider, model, baseUrl, systemPrompt, and temperature."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "npx @vscode/vsce package  --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.80.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0"
+  },
+  "dependencies": {
+    "openai": "^6.25.0"
+  }
+}

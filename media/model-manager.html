@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EnoHacker Model Manager</title>
+  <style>
+    body { font-family: var(--vscode-font-family); padding: 16px; color: var(--vscode-foreground); }
+    .field { margin-bottom: 10px; }
+    label { display: block; margin-bottom: 4px; }
+    input, select { width: 100%; box-sizing: border-box; padding: 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }
+    .row { display: flex; gap: 8px; margin-top: 12px; }
+    button { border: 1px solid var(--vscode-button-border); background: var(--vscode-button-background); color: var(--vscode-button-foreground); padding: 6px 10px; cursor: pointer; }
+    button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+  </style>
+</head>
+<body>
+  <h3>Model Manager</h3>
+  <div class="field"><label>Save Scope</label><select id="scope"><option value="workspace">Workspace</option><option value="user">User</option></select></div>
+	<div class="field"><label>Provider</label><select id="provider"><option value="openai">openai</option><option value="anthropic">anthropic</option><option value="ollama">ollama</option></select></div>
+  <div class="field"><label>Model</label><select id="modelList"></select></div>
+  <div class="field"><label>Custom Model (optional)</label><input id="customModel" placeholder="Type custom model name" /></div>
+  <div class="field"><label>Base URL</label><input id="baseUrl" /></div>
+  <div class="field"><label>API Key (optional)</label><input id="apiKey" type="password" placeholder="Leave empty to keep existing key" /></div>
+  <div class="field"><label>Temperature (0-2)</label><input id="temperature" type="number" min="0" max="2" step="0.1" /></div>
+  <div class="row">
+    <button id="save">Save</button>
+    <button id="check" class="secondary">Check Connection</button>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const provider = document.getElementById('provider');
+    const modelList = document.getElementById('modelList');
+    const customModel = document.getElementById('customModel');
+
+    function setModelOptions(options, currentModel) {
+      modelList.innerHTML = '';
+      options.forEach((option) => {
+        const node = document.createElement('option');
+        node.value = option.value;
+        node.textContent = option.label;
+        modelList.appendChild(node);
+      });
+
+      if (currentModel && options.some((x) => x.value === currentModel)) {
+        modelList.value = currentModel;
+      }
+    }
+
+		provider.addEventListener('change', () => {
+			vscode.postMessage({ type: 'providerChanged', payload: { provider: provider.value } });
+    });
+
+		modelList.addEventListener('change', () => {
+			customModel.value = '';
+		});
+
+    document.getElementById('save').addEventListener('click', () => {
+			const selectedModel = modelList.value;
+			const customValue = customModel.value.trim();
+			const finalModel = customValue && customValue !== selectedModel ? customValue : selectedModel;
+      vscode.postMessage({
+        type: 'save',
+        payload: {
+          scope: document.getElementById('scope').value,
+          provider: provider.value,
+					model: finalModel,
+          baseUrl: document.getElementById('baseUrl').value,
+          apiKey: document.getElementById('apiKey').value,
+          temperature: document.getElementById('temperature').value
+        }
+      });
+    });
+
+    document.getElementById('check').addEventListener('click', () => {
+      vscode.postMessage({ type: 'check' });
+    });
+
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (message.type !== 'modelConfig') {
+				if (message.type === 'modelOptions') {
+					setModelOptions(message.options || [], '');
+				}
+				return;
+      }
+
+      provider.value = message.settings.provider;
+      setModelOptions(message.options || [], message.settings.model);
+      document.getElementById('baseUrl').value = message.settings.baseUrl || '';
+			document.getElementById('apiKey').value = message.settings.apiKey || '';
+      document.getElementById('temperature').value = String(message.settings.temperature ?? 0.2);
+			const currentOption = (message.options || []).find((option) => option.value === message.settings.model);
+			const isCustomModel = Boolean(currentOption && typeof currentOption.label === 'string' && (currentOption.label.includes('(custom)') || currentOption.label.includes('(current)')));
+			customModel.value = isCustomModel ? (message.settings.model || '') : '';
+    });
+
+    vscode.postMessage({ type: 'ready' });
+  </script>
+</body>
+</html>
