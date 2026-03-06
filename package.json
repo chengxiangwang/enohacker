@@ -1,121 +1,60 @@
 {
-  "name": "enohacker-ai",
-  "displayName": "Enohacker AI",
-  "description": "A VS Code extension scaffold for Enohacker AI.",
+  "name": "enohacker",
+  "displayName": "EnoHacker",
+  "description": "EnoHacker - pi-coding-agent powered sidebar for VS Code",
   "version": "0.0.1",
-  "publisher": "cxwang",
+  "publisher": "2207LHI",
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.80.0"
   },
-  "categories": ["AI", "Other"],
   "activationEvents": [
-    "onCommand:enohacker-ai.start",
-    "onCommand:enohacker-ai.startAgent",
-    "onCommand:enohacker-ai.stopAgent",
-    "onCommand:enohacker-ai.installCodingAgent",
-    "onView:enohackerAI.mainView"
+    "onStartupFinished",
+    "onView:enohacker.sidebarView"
   ],
   "main": "./out/extension.js",
-  "scripts": {
-    "prepare-coding-agent": "bash ./scripts/prepare-coding-agent.sh",
-    "vscode:prepublish": "npm run prepare-coding-agent && npm run compile",
-    "compile": "tsc -p ./",
-    "compile-tests": "tsc -p ./test/tsconfig.json",
-    "watch": "tsc -w -p ./",
-    "pretest": "npm run compile && npm run compile-tests",
-    "test": "node ./out/test/runTest.js",
-    "prettier": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"*.md\"",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"*.md\"",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --ext .ts",
-    "package": "npx @vscode/vsce package"
-  },
-  "devDependencies": {
-    "typescript": "^4.9.5",
-    "@types/node": "^14.18.2",
-    "eslint": "^8.29.0",
-    "@vscode/vsce": "^2.15.0",
-    "mocha": "^8.2.1",
-    "@types/mocha": "^8.2.0",
-    "@types/vscode": "^1.60.0",
-    "@vscode/test-electron": "^2.0.2",
-    "@types/glob": "^7.2.0",
-    "glob": "^7.2.3",
-    "prettier": "^2.8.8",
-    "eslint-config-prettier": "^8.8.0",
-    "eslint-plugin-prettier": "^4.2.1",
-    "@typescript-eslint/parser": "^5.60.0",
-    "@typescript-eslint/eslint-plugin": "^5.60.0"
-  },
-  "files": [
-    "out/**",
-    "images/**",
-    "vendor/**",
-    "package.json",
-    "README.md"
-  ],
-  "icon": "images/icon.svg",
   "contributes": {
-    "configuration": {
-      "type": "object",
-      "title": "Enohacker AI",
-      "properties": {
-        "enohacker-ai.codingAgent.runMode": {
-          "type": "string",
-          "enum": ["spawn", "terminal"],
-          "default": "spawn",
-          "description": "Coding agent 启动模式。spawn: 扩展 spawn 子进程并在侧边栏呈现输出；terminal: 在集成终端中运行。"
-        },
-        "enohacker-ai.codingAgent.path": {
-          "type": "string",
-          "default": "",
-          "description": "可选：系统中 pi 命令或 package 的路径（优先于内置 vendor）。"
-        }
-      }
-    },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "enohackerAI",
-          "title": "Enohacker AI",
-          "icon": "images/icon.svg"
+          "id": "enohacker-sidebar",
+          "title": "EnoHacker",
+          "icon": "media/enohacker.svg"
         }
       ]
     },
     "views": {
-      "enohackerAI": [
+      "enohacker-sidebar": [
         {
-          "id": "enohackerAI.mainView",
-          "name": "Enohacker"
+          "id": "enohacker.sidebarView",
+          "name": "EnoHacker",
+          "type": "webview"
         }
       ]
     },
+
     "commands": [
       {
-        "command": "enohacker-ai.start",
-        "title": "Enohacker AI: Start",
-        "category": "Enohacker AI"
+        "command": "enohacker.showSidebar",
+        "title": "Show EnoHacker"
       },
       {
-        "command": "enohacker-ai.installCodingAgent",
-        "title": "Install Coding Agent",
-        "category": "Enohacker AI"
-      },
-      {
-        "command": "enohacker-ai.startAgent",
-        "title": "Start Coding Agent",
-        "category": "Enohacker AI"
-      },
-      {
-        "command": "enohacker-ai.stopAgent",
-        "title": "Stop Coding Agent",
-        "category": "Enohacker AI"
+        "command": "enohacker.openPanel",
+        "title": "Open EnoHacker Panel"
       }
     ]
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-name/enohacker-ai"
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --allow-missing-repository --allow-star-activation"
   },
-  "keywords": ["enohacker", "ai", "vscode"],
-  "license": "MIT"
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "file:../pi-mono/packages/coding-agent"
+  }
 }
