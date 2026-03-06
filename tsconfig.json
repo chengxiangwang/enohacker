@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "es2022",
+    "target": "es2020",
+    "outDir": "out",
+    "lib": ["es2022", "dom"],
+    "sourceMap": true,
+    "inlineSources": true,
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+
+  "include": ["src"],
+  "exclude": ["node_modules", ".vscode-test"]
+}
