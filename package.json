@@ -1,52 +1,21 @@
 {
   "name": "enohacker",
   "displayName": "EnoHacker",
-  "description": "EnoHacker - pi-coding-agent powered sidebar for VS Code",
+  "description": "EnoHacker - pi-coding-agent for VS Code",
   "version": "0.0.1",
-  "publisher": "2207LHI",
+  "publisher": "cxwang",
   "engines": {
     "vscode": "^1.80.0"
   },
   "activationEvents": [
-    "onStartupFinished",
-    "onView:enohacker.sidebarView"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "enohacker-sidebar",
-          "title": "EnoHacker",
-          "icon": "media/enohacker.svg"
-        }
-      ]
-    },
-    "views": {
-      "enohacker-sidebar": [
-        {
-          "id": "enohacker.sidebarView",
-          "name": "EnoHacker",
-          "type": "webview"
-        }
-      ]
-    },
     "commands": [
-      {
-        "command": "enohacker.showSidebar",
-        "title": "Show EnoHacker"
-      },
       {
         "command": "enohacker.openPiTerminal",
         "title": "Start pi in Terminal"
-      },
-      {
-        "command": "enohacker.startPi",
-        "title": "Start pi (RPC) headless"
-      },
-      {
-        "command": "enohacker.stopPi",
-        "title": "Stop pi"
       }
     ],
     "configuration": {
@@ -73,7 +42,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "file:../pi-mono/packages/coding-agent",
+    "@mariozechner/pi-coding-agent": "^0.57.0",
     "highlight.js": "^11.11.1",
     "marked": "^17.0.4"
   }
