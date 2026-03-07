@@ -31,17 +31,35 @@
         }
       ]
     },
-
     "commands": [
       {
         "command": "enohacker.showSidebar",
         "title": "Show EnoHacker"
       },
       {
-        "command": "enohacker.openPanel",
-        "title": "Open EnoHacker Panel"
+        "command": "enohacker.openPiTerminal",
+        "title": "Start pi in Terminal"
+      },
+      {
+        "command": "enohacker.startPi",
+        "title": "Start pi (RPC) headless"
+      },
+      {
+        "command": "enohacker.stopPi",
+        "title": "Stop pi"
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "EnoHacker",
+      "properties": {
+        "enohacker.piPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a local 'pi' CLI js file (cli.js). If set, EnoHacker will prefer this CLI over a global 'pi' command. Supports ~ for home and workspace-relative paths."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -55,6 +73,8 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "file:../pi-mono/packages/coding-agent"
+    "@mariozechner/pi-coding-agent": "file:../pi-mono/packages/coding-agent",
+    "highlight.js": "^11.11.1",
+    "marked": "^17.0.4"
   }
 }
