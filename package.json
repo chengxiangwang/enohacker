@@ -9,7 +9,8 @@
     "vscode": "^1.80.0"
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onView:enohacker.sidebarView"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -17,8 +18,29 @@
       {
         "command": "enohacker.openPiTerminal",
         "title": "Start pi in Terminal"
+      },
+      {
+        "command": "enohacker.showSidebar",
+        "title": "Show EnoHacker Sidebar"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "enohacker-sidebar",
+          "title": "EnoHacker",
+          "icon": "resources/enohacker-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "enohacker-sidebar": [
+        {
+          "id": "enohacker.sidebarView",
+          "name": "Agent"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "EnoHacker",
