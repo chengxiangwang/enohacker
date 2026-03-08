@@ -5,9 +5,11 @@ import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 
 // Small quoting helpers for constructing shell commands when launching via a shell
 function shellEscape(s: string): string {
+  // POSIX single-quote escaping
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 function quotePowerShell(s: string): string {
+  // PowerShell single-quote literal escaping ('' -> ' inside single quotes)
   return "'" + s.replace(/'/g, "''") + "'";
 }
 
@@ -36,6 +38,11 @@ export class PiRunner {
   private rpcBuffer = '';
   private isStartingRpc = false;
 
+  // Mock mode used when the CLI cannot be resolved — useful for UI development / tests
+  private mockMode = false;
+  private mockPid?: number;
+  private mockTimers: NodeJS.Timeout[] = [];
+
   private terminalProc?: ChildProcessWithoutNullStreams; // child process running inside the pty
   private terminal?: vscode.Terminal; // the VS Code Terminal object
   private isStartingTerminal = false;
@@ -51,6 +58,11 @@ export class PiRunner {
   constructor(context: vscode.ExtensionContext, output?: vscode.OutputChannel) {
     this.context = context;
     this.output = output;
+  }
+
+  // Return the pid of the running RPC process (if any)
+  public getRpcPid(): number | undefined {
+    try { return this.rpcProc?.pid; } catch { return undefined; }
   }
 
   // Try to resolve the pi CLI path. Prefer an explicit enohacker.piPath configuration if present,
@@ -134,9 +146,23 @@ export class PiRunner {
   }
 
   // Start a headless RPC instance and emit parsed events via onEvent
-  public async startHiddenRpc(): Promise<void> {
-    if (this.rpcProc) return;
-    if (this.isStartingRpc) return;
+  // options: waitForReady?: boolean (wait until a parsed JSON event arrives or a predicate matches)
+  public async startHiddenRpc(opts?: { waitForReady?: boolean; timeoutMs?: number; readyPredicate?: (ev: any) => boolean }): Promise<void> {
+    // If RPC is already running, optionally wait for a ready event if requested
+    if (this.rpcProc) {
+      if (opts && opts.waitForReady) {
+        this.output?.appendLine('[DEBUG] startHiddenRpc: already have rpcProc, waiting for ready');
+        await this.waitForRpcReady(opts.timeoutMs ?? 5000, opts.readyPredicate);
+      }
+      return;
+    }
+    if (this.isStartingRpc) {
+      if (opts && opts.waitForReady) {
+        this.output?.appendLine('[DEBUG] startHiddenRpc: rpc is starting, waiting for ready');
+        await this.waitForRpcReady(opts.timeoutMs ?? 5000, opts.readyPredicate);
+      }
+      return;
+    }
     this.isStartingRpc = true;
 
     const candidate = this.resolveCliPathCandidate();
@@ -152,7 +178,6 @@ export class PiRunner {
     let args: string[] = [];
 
     if (candidate.endsWith('.ts')) {
-      // Use npx tsx to run the TypeScript source (mirrors ai.sh behaviour in development)
       launcher = 'npx';
       args = ['tsx', candidate, '--mode', 'rpc', '--no-session'];
       this.output?.appendLine('[INFO] starting pi rpc headless via `npx tsx` (' + candidate + ')');
@@ -168,10 +193,30 @@ export class PiRunner {
       env: { ...process.env }
     });
 
+    // If spawn succeeded, the child process will typically have a pid. Log and emit an immediate event so listeners can observe it.
+    if (this.rpcProc && typeof this.rpcProc.pid !== 'undefined') {
+      try { this.output?.appendLine('[INFO] pi (rpc) started; pid=' + String(this.rpcProc.pid)); } catch (e) {}
+      try { this.eventEmitter.fire({ type: 'rpc_started', pid: this.rpcProc.pid }); } catch (e) {}
+    }
+
+    // listen for spawn errors (e.g., ENOENT)
+    this.rpcProc.on('error', (err) => {
+      this.output?.appendLine('[ERROR] pi rpc spawn error: ' + String(err));
+      this.rawEmitter.fire('[pi spawn error] ' + String(err));
+      this.eventEmitter.fire({ type: 'rpc_spawn_error', error: String(err) });
+      // fallback to mock mode so UI remains responsive in dev environments
+      this.rpcProc = undefined;
+      this.mockMode = true;
+      this.mockPid = Math.floor(Math.random() * 100000) + 1000;
+      this.output?.appendLine('[WARN] entering mockMode; pid=' + String(this.mockPid));
+      this.eventEmitter.fire({ type: 'rpc_started', pid: this.mockPid });
+      // emit a ready event shortly after
+      setTimeout(() => this.eventEmitter.fire({ type: 'rpc_ready', pid: this.mockPid }), 200);
+    });
+
     this.rpcProc.stderr?.on('data', (b) => {
       const s = b.toString();
       this.output?.appendLine('[pi stderr] ' + s);
-      // Emit raw stderr from RPC process for debugging if listeners want it
       this.rawEmitter.fire(s);
     });
 
@@ -184,6 +229,72 @@ export class PiRunner {
     });
 
     this.isStartingRpc = false;
+
+    // Optionally wait for a parsed JSON event (or a predicate) to consider the RPC "ready"
+    if (opts && opts.waitForReady) {
+      await this.waitForRpcReady(opts.timeoutMs ?? 5000, opts.readyPredicate);
+    }
+
+  }
+
+  // Wait for RPC ready predicate via eventEmitter
+  private waitForRpcReady(timeoutMs: number = 5000, readyPredicate?: (ev: any) => boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      // Immediate check: if predicate matches current rpc state (e.g., rpc_started already emitted), resolve immediately
+      try {
+        if (readyPredicate) {
+          const candidate = this.rpcProc ? { type: 'rpc_started', pid: this.rpcProc.pid } : undefined;
+          if (candidate && readyPredicate(candidate)) {
+            resolve();
+            return;
+          }
+          if (this.mockMode && typeof this.mockPid !== 'undefined') {
+            const mockCandidate = { type: 'rpc_ready', pid: this.mockPid };
+            if (readyPredicate(mockCandidate)) {
+              resolve();
+              return;
+            }
+          }
+        } else {
+          if (this.rpcProc || this.mockMode) {
+            resolve();
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore predicate errors and proceed to wait
+      }
+
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { disp?.dispose(); } catch (e) {}
+        reject(new Error('rpc ready timeout after ' + String(timeoutMs) + 'ms'));
+      }, timeoutMs);
+
+      const disp = this.onEvent((ev: any) => {
+        try {
+          if (readyPredicate && !readyPredicate(ev)) return;
+        } catch (e) {
+          return;
+        }
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { disp?.dispose(); } catch (e) {}
+        resolve();
+      });
+
+      // If mock mode is already active resolve quickly (fallback)
+      if (this.mockMode && !settled) {
+        settled = true;
+        clearTimeout(timer);
+        try { disp?.dispose(); } catch (e) {}
+        resolve();
+      }
+    });
   }
 
   // Start a terminal-backed pi instance. Terminal output is not emitted as parsed events.
@@ -394,11 +505,20 @@ export class PiRunner {
   }
 
   public sendCommand(obj: any) {
+    // If mockMode, handle commands locally
+    if (this.mockMode) {
+      this.output?.appendLine('[MOCK] sendCommand: ' + JSON.stringify(obj));
+      this.handleMockCommand(obj);
+      return;
+    }
+
     if (!this.rpcProc || !this.rpcProc.stdin) {
+      this.output?.appendLine('[ERROR] sendCommand: pi RPC not running');
       throw new Error('pi RPC process not running');
     }
     try {
       const line = JSON.stringify(obj) + '\n';
+      this.output?.appendLine('[DEBUG] writing to pi rpc stdin: ' + (line.length > 500 ? line.slice(0, 500) + '...<truncated>' : line));
       this.rpcProc.stdin.write(line);
     } catch (e) {
       this.output?.appendLine('[ERROR] failed to write to pi rpc stdin: ' + String(e));
@@ -407,13 +527,55 @@ export class PiRunner {
   }
 
   public sendRaw(text: string) {
+    if (this.mockMode) {
+      // in mock mode, treat raw as a simple trigger
+      this.output?.appendLine('[MOCK] sendRaw: ' + text);
+      return;
+    }
     if (!this.rpcProc || !this.rpcProc.stdin) throw new Error('pi RPC process not running');
     this.rpcProc.stdin.write(text);
+  }
+
+  // Simple mock command handler for UI testing when no CLI is available
+  private handleMockCommand(obj: any) {
+    try {
+      if (!obj || typeof obj !== 'object') return;
+      const t = obj.type || obj.cmd || 'unknown';
+      if (t === 'completion_request' || t === 'complete' || t === 'ask' || t === 'prompt') {
+        const id = obj.id || ('mock-' + Math.floor(Math.random() * 100000));
+        const prompt = obj.prompt || obj.message || obj.text || String(obj);
+        // emit started event for this request
+        this.eventEmitter.fire({ type: 'completion_started', id, prompt });
+        // simulate streaming chunks
+        const chunks = simulateChunks(prompt);
+        let idx = 0;
+        const timer = setInterval(() => {
+          if (idx < chunks.length) {
+            this.eventEmitter.fire({ type: 'completion_chunk', id, text: chunks[idx], index: idx });
+            idx++;
+          } else {
+            this.eventEmitter.fire({ type: 'completion_end', id, text: chunks.join('') });
+            clearInterval(timer);
+            // remove timer from mockTimers
+            this.mockTimers = this.mockTimers.filter(t => t !== timer);
+          }
+        }, 250);
+        this.mockTimers.push(timer as any);
+      } else if (t === 'stop') {
+        this.eventEmitter.fire({ type: 'stopped' });
+      } else {
+        // echo as generic event
+        this.eventEmitter.fire({ type: 'mock_event', payload: obj });
+      }
+    } catch (e) {
+      // ignore mock errors
+    }
   }
 
   // internal: accumulate stdout chunks from RPC process, split into lines, parse JSON lines and emit events
   private handleRpcStdoutChunk(chunk: string) {
     // Emit raw for debugging
+    try { this.output?.appendLine('[pi stdout chunk] ' + (chunk.length > 500 ? chunk.slice(0, 500) + '...<truncated>' : chunk)); } catch (e) {}
     this.rawEmitter.fire(chunk);
 
     this.rpcBuffer += chunk;
@@ -424,6 +586,7 @@ export class PiRunner {
       if (!line) continue;
       try {
         const parsed = JSON.parse(line);
+        try { this.output?.appendLine('[pi stdout json] ' + JSON.stringify(parsed)); } catch (e) {}
         this.eventEmitter.fire(parsed);
       } catch (e) {
         // Non-JSON line. Emit as raw so listeners can decide what to do
@@ -431,4 +594,27 @@ export class PiRunner {
       }
     }
   }
+
+  // Cleanup mock timers when stopping
+  private cleanupMock() {
+    for (const t of this.mockTimers) {
+      try { clearInterval(t); } catch (e) {}
+    }
+    this.mockTimers = [];
+  }
+}
+
+// helper to create simulated completion chunks from a prompt
+function simulateChunks(prompt: string): string[] {
+  // naive splitting: return a few chunks based on words
+  const words = String(prompt).split(/\s+/);
+  const chunks: string[] = [];
+  let cur = '';
+  for (let i = 0; i < words.length; i++) {
+    cur += (i ? ' ' : '') + words[i];
+    if (i % 5 === 4) { chunks.push(cur + ' '); cur = ''; }
+  }
+  if (cur) chunks.push(cur + ' ');
+  if (chunks.length === 0) chunks.push(prompt);
+  return chunks;
 }

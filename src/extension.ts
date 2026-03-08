@@ -5,7 +5,7 @@ import { PiRunner } from './agent/piRunner';
 import { EnoHackerSidebarProvider } from './view/sidebarView';
 
 // 开发阶段布局优先：默认启用 layout-only 模式，不启动 pi 子进程（便于在 Extension Dev Host 中快速预览界面）
-const LAYOUT_ONLY = true;
+const LAYOUT_ONLY = false;
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -33,11 +33,36 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       const provider = new EnoHackerSidebarProvider(context, runner, outputChannel);
       const disp = vscode.window.registerWebviewViewProvider(EnoHackerSidebarProvider.viewType, provider, {
-        webviewOptions: { retainContextWhenHidden: true }
+        // Do NOT retain context when hidden to ensure the webview reloads its HTML/UI each time it becomes visible.
+        webviewOptions: { retainContextWhenHidden: false }
       });
       context.subscriptions.push(disp);
       context.subscriptions.push(vscode.commands.registerCommand('enohacker.showSidebar', async () => {
-        try { await vscode.commands.executeCommand('workbench.view.extension.enohacker-sidebar'); } catch (e) { /* ignore */ }
+        try {
+          // When the user requests the sidebar be shown, optionally ensure the headless RPC is started
+          if (!LAYOUT_ONLY) {
+            outputChannel?.appendLine('[DEBUG] showSidebar: attempting to start hidden RPC');
+            try { await runner.startHiddenRpc(); } catch (err) { outputChannel?.appendLine('[WARN] showSidebar startHiddenRpc failed: ' + String(err)); }
+          } else {
+            outputChannel?.appendLine('[DEBUG] showSidebar: LAYOUT_ONLY enabled; not starting RPC automatically');
+          }
+
+          await vscode.commands.executeCommand('workbench.view.extension.enohacker-sidebar');
+        } catch (e) { /* ignore */ }
+      }));
+
+      // Expose an explicit command to start the headless RPC (useful in Dev Host)
+      context.subscriptions.push(vscode.commands.registerCommand('enohacker.startRpc', async () => {
+        try {
+          outputChannel?.appendLine('[INFO] enohacker.startRpc invoked');
+          await runner.startHiddenRpc();
+          const pid = runner.getRpcPid();
+          outputChannel?.appendLine('[INFO] enohacker.startRpc: pid=' + String(pid));
+          try { await vscode.window.showInformationMessage('pi RPC started (pid: ' + String(pid) + ')'); } catch {}
+        } catch (e) {
+          outputChannel?.appendLine('[ERROR] enohacker.startRpc failed: ' + String(e));
+          try { await vscode.window.showErrorMessage('Failed to start pi RPC: ' + String(e)); } catch {}
+        }
       }));
       outputChannel?.appendLine('[INFO] registered sidebar webview provider');
     } catch (e) {
@@ -173,6 +198,15 @@ export function activate(context: vscode.ExtensionContext) {
     } catch (e) {
       outputChannel?.appendLine('[WARN] failed to invoke enohacker.showSidebar: ' + String(e));
     }
+
+    // Ensure RPC/term processes are cleaned up when the extension is deactivated
+    try {
+      context.subscriptions.push({ dispose: () => {
+        try { runner.stop(); } catch (e) { /* ignore */ }
+      } });
+    } catch (e) {
+      outputChannel?.appendLine('[DEBUG] failed to register deactivate cleanup: ' + String(e));
+    }
   } catch (err) {
     outputChannel?.appendLine('[ERROR] activation failed: ' + String(err));
     try { vscode.window.showErrorMessage('EnoHacker activation failed: ' + String(err)); } catch {}
@@ -180,5 +214,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  // nothing
+  // VS Code will dispose context.subscriptions automatically; runner.stop() is registered there
 }

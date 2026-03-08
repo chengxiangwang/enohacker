@@ -10,18 +10,25 @@
   },
   "activationEvents": [
     "onStartupFinished",
-    "onView:enohacker.sidebarView"
+    "onView:enohacker.sidebarView",
+    "onCommand:enohacker.startRpc",
+    "onCommand:enohacker.showSidebar",
+    "onCommand:enohacker.openPiTerminal"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "enohacker.openPiTerminal",
-        "title": "Start pi in Terminal"
+        "title": "Enohacker: Start pi in Terminal"
       },
       {
         "command": "enohacker.showSidebar",
-        "title": "Show EnoHacker Sidebar"
+        "title": "Enohacker: Show Sidebar"
+      },
+      {
+        "command": "enohacker.startRpc",
+        "title": "Enohacker: Start pi RPC (headless)"
       }
     ],
     "viewsContainers": {
@@ -37,7 +44,8 @@
       "enohacker-sidebar": [
         {
           "id": "enohacker.sidebarView",
-          "name": "Agent"
+          "name": "Agent",
+          "type": "webview"
         }
       ]
     },
@@ -55,6 +63,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
+    "lint": "tsc -p . --noEmit",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package --allow-missing-repository --allow-star-activation"

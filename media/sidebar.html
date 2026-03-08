@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src %WEBVIEW_CSP_SOURCE% https:; script-src %WEBVIEW_CSP_SOURCE%; style-src %WEBVIEW_CSP_SOURCE%;">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EnoHacker Agent</title>
+<link rel="stylesheet" href="%STYLE_URI%">
+</head>
+<body>
+  <h3>EnoHacker UI Agent</h3>
+  <div class="row">
+    <button id="start-rpc">Start RPC</button>
+    <button id="start-terminal">Open Terminal</button>
+    <button id="start-terminal-visible">Open Terminal (visible)</button>
+    <button id="stop-all">Stop RPC</button>
+    <div id="pid"></div>
+  </div>
+
+  <div id="copilot">
+    <div><strong>Ask EnoHacker</strong></div>
+    <div style="margin-top:6px;"><textarea id="prompt" placeholder="Describe what you want (e.g. 'Write a function that...')"></textarea></div>
+    <div class="row" style="margin-top:6px;">
+      <button id="ask">Ask</button>
+      <button id="cancel">Cancel</button>
+      <button id="accept" disabled>Accept & Insert</button>
+      <button id="copy" disabled>Copy</button>
+      <button id="clear">Clear</button>
+      <div id="status"></div>
+    </div>
+    <div id="suggestion" class="suggestion" aria-live="polite"></div>
+  </div>
+
+  <div id="events"></div>
+
+<script src="%SCRIPT_URI%"></script>
+</body>
+</html>
