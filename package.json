@@ -63,7 +63,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "lint": "tsc -p . --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,js,css,html}\" \"media/**/*.{js,css,html}\"",
+    "lint": "npm run format && tsc -p . --noEmit",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package --allow-missing-repository --allow-star-activation"
@@ -71,7 +72,9 @@
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.80.0",
-    "typescript": "^5.9.0"
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.0",
+    "vsce": "^2.15.0"
   },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "^0.57.0",

@@ -62,7 +62,11 @@ export class PiRunner {
 
   // Return the pid of the running RPC process (if any)
   public getRpcPid(): number | undefined {
-    try { return this.rpcProc?.pid; } catch { return undefined; }
+    try {
+      return this.rpcProc?.pid;
+    } catch {
+      return undefined;
+    }
   }
 
   // Try to resolve the pi CLI path. Prefer an explicit enohacker.piPath configuration if present,
@@ -105,30 +109,62 @@ export class PiRunner {
     }
 
     // 1) Check extension's node_modules where the package would be when bundled in the VSIX
-    const nmPath = path.join(this.context.extensionPath, 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+    const nmPath = path.join(
+      this.context.extensionPath,
+      'node_modules',
+      '@mariozechner',
+      'pi-coding-agent',
+      'dist',
+      'cli.js',
+    );
     if (fs.existsSync(nmPath)) return nmPath;
 
     // 2) Try require.resolve as a more general resolution (honors NODE_PATH / require paths)
     try {
-      const resolved = require.resolve('@mariozechner/pi-coding-agent/dist/cli.js', { paths: [this.context.extensionPath, process.cwd()] });
+      const resolved = require.resolve('@mariozechner/pi-coding-agent/dist/cli.js', {
+        paths: [this.context.extensionPath, process.cwd()],
+      });
       if (resolved && fs.existsSync(resolved)) return resolved;
     } catch (e) {
       // ignore
     }
 
     // 3) Fallback to adjacent pi-mono workspace layout used during development (compiled)
-    const devDist = path.join(this.context.extensionPath, '..', 'pi-mono', 'packages', 'coding-agent', 'dist', 'cli.js');
+    const devDist = path.join(
+      this.context.extensionPath,
+      '..',
+      'pi-mono',
+      'packages',
+      'coding-agent',
+      'dist',
+      'cli.js',
+    );
     if (fs.existsSync(devDist)) return devDist;
 
     // 4) Check for TypeScript source used in development and supported by ai.sh
-    const devSrc = path.join(this.context.extensionPath, '..', 'pi-mono', 'packages', 'coding-agent', 'src', 'cli.ts');
+    const devSrc = path.join(
+      this.context.extensionPath,
+      '..',
+      'pi-mono',
+      'packages',
+      'coding-agent',
+      'src',
+      'cli.ts',
+    );
     if (fs.existsSync(devSrc)) return devSrc;
 
     // 5) Try workspace-local node_modules (if extension is used inside monorepo)
     try {
       const ws = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
       if (ws) {
-        const wsNm = path.join(ws.uri.fsPath, 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+        const wsNm = path.join(
+          ws.uri.fsPath,
+          'node_modules',
+          '@mariozechner',
+          'pi-coding-agent',
+          'dist',
+          'cli.js',
+        );
         if (fs.existsSync(wsNm)) return wsNm;
         const wsSrc = path.join(ws.uri.fsPath, 'packages', 'coding-agent', 'src', 'cli.ts');
         if (fs.existsSync(wsSrc)) return wsSrc;
@@ -142,12 +178,20 @@ export class PiRunner {
 
   // Expose candidate resolver for external consumers (extension activation, terminal profile provider)
   public getCliPathCandidate(): string | undefined {
-    try { return this.resolveCliPathCandidate(); } catch (e) { return undefined; }
+    try {
+      return this.resolveCliPathCandidate();
+    } catch (e) {
+      return undefined;
+    }
   }
 
   // Start a headless RPC instance and emit parsed events via onEvent
   // options: waitForReady?: boolean (wait until a parsed JSON event arrives or a predicate matches)
-  public async startHiddenRpc(opts?: { waitForReady?: boolean; timeoutMs?: number; readyPredicate?: (ev: any) => boolean }): Promise<void> {
+  public async startHiddenRpc(opts?: {
+    waitForReady?: boolean;
+    timeoutMs?: number;
+    readyPredicate?: (ev: any) => boolean;
+  }): Promise<void> {
     // If RPC is already running, optionally wait for a ready event if requested
     if (this.rpcProc) {
       if (opts && opts.waitForReady) {
@@ -190,17 +234,21 @@ export class PiRunner {
     this.rpcProc = spawn(launcher, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.context.extensionPath,
-      env: { ...process.env }
+      env: { ...process.env },
     });
 
     // If spawn succeeded, the child process will typically have a pid. Log and emit an immediate event so listeners can observe it.
     if (this.rpcProc && typeof this.rpcProc.pid !== 'undefined') {
-      try { this.output?.appendLine('[INFO] pi (rpc) started; pid=' + String(this.rpcProc.pid)); } catch (e) {}
-      try { this.eventEmitter.fire({ type: 'rpc_started', pid: this.rpcProc.pid }); } catch (e) {}
+      try {
+        this.output?.appendLine('[INFO] pi (rpc) started; pid=' + String(this.rpcProc.pid));
+      } catch (e) {}
+      try {
+        this.eventEmitter.fire({ type: 'rpc_started', pid: this.rpcProc.pid });
+      } catch (e) {}
     }
 
     // listen for spawn errors (e.g., ENOENT)
-    this.rpcProc.on('error', (err) => {
+    this.rpcProc.on('error', err => {
       this.output?.appendLine('[ERROR] pi rpc spawn error: ' + String(err));
       this.rawEmitter.fire('[pi spawn error] ' + String(err));
       this.eventEmitter.fire({ type: 'rpc_spawn_error', error: String(err) });
@@ -214,15 +262,15 @@ export class PiRunner {
       setTimeout(() => this.eventEmitter.fire({ type: 'rpc_ready', pid: this.mockPid }), 200);
     });
 
-    this.rpcProc.stderr?.on('data', (b) => {
+    this.rpcProc.stderr?.on('data', b => {
       const s = b.toString();
       this.output?.appendLine('[pi stderr] ' + s);
       this.rawEmitter.fire(s);
     });
 
-    this.rpcProc.stdout?.on('data', (b) => this.handleRpcStdoutChunk(b.toString()));
+    this.rpcProc.stdout?.on('data', b => this.handleRpcStdoutChunk(b.toString()));
 
-    this.rpcProc.on('exit', (code) => {
+    this.rpcProc.on('exit', code => {
       this.output?.appendLine('[INFO] pi (rpc) process exited: ' + String(code));
       this.eventEmitter.fire({ type: 'rpc_process_exit', code });
       this.rpcProc = undefined;
@@ -234,18 +282,22 @@ export class PiRunner {
     if (opts && opts.waitForReady) {
       await this.waitForRpcReady(opts.timeoutMs ?? 5000, opts.readyPredicate);
     }
-
   }
 
   // Wait for RPC ready predicate via eventEmitter
-  private waitForRpcReady(timeoutMs: number = 5000, readyPredicate?: (ev: any) => boolean): Promise<void> {
+  private waitForRpcReady(
+    timeoutMs: number = 5000,
+    readyPredicate?: (ev: any) => boolean,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       let settled = false;
 
       // Immediate check: if predicate matches current rpc state (e.g., rpc_started already emitted), resolve immediately
       try {
         if (readyPredicate) {
-          const candidate = this.rpcProc ? { type: 'rpc_started', pid: this.rpcProc.pid } : undefined;
+          const candidate = this.rpcProc
+            ? { type: 'rpc_started', pid: this.rpcProc.pid }
+            : undefined;
           if (candidate && readyPredicate(candidate)) {
             resolve();
             return;
@@ -270,7 +322,9 @@ export class PiRunner {
       const timer = setTimeout(() => {
         if (settled) return;
         settled = true;
-        try { disp?.dispose(); } catch (e) {}
+        try {
+          disp?.dispose();
+        } catch (e) {}
         reject(new Error('rpc ready timeout after ' + String(timeoutMs) + 'ms'));
       }, timeoutMs);
 
@@ -283,7 +337,9 @@ export class PiRunner {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        try { disp?.dispose(); } catch (e) {}
+        try {
+          disp?.dispose();
+        } catch (e) {}
         resolve();
       });
 
@@ -291,16 +347,23 @@ export class PiRunner {
       if (this.mockMode && !settled) {
         settled = true;
         clearTimeout(timer);
-        try { disp?.dispose(); } catch (e) {}
+        try {
+          disp?.dispose();
+        } catch (e) {}
         resolve();
       }
     });
   }
 
   // Start a terminal-backed pi instance. Terminal output is not emitted as parsed events.
-  public async startTerminal(name = 'pi (enohacker)', options?: { noEnv?: boolean; args?: string[]; integrated?: boolean }) {
+  public async startTerminal(
+    name = 'pi (enohacker)',
+    options?: { noEnv?: boolean; args?: string[]; integrated?: boolean },
+  ) {
     if (this.terminalProc) {
-      this.output?.appendLine('[WARN] terminal-backed pi already running; skipping new terminal spawn');
+      this.output?.appendLine(
+        '[WARN] terminal-backed pi already running; skipping new terminal spawn',
+      );
       return;
     }
     if (this.isStartingTerminal) return;
@@ -310,8 +373,18 @@ export class PiRunner {
     let candidate = this.resolveCliPathCandidate();
     // If resolveCliPathCandidate didn't find anything, we will prefer pointing user to settings rather than trying a global 'pi'
     if (!candidate) {
-      this.output?.appendLine('[WARN] pi CLI not found via resolve; will try development sources before giving up');
-      const devSrc = path.join(this.context.extensionPath, '..', 'pi-mono', 'packages', 'coding-agent', 'src', 'cli.ts');
+      this.output?.appendLine(
+        '[WARN] pi CLI not found via resolve; will try development sources before giving up',
+      );
+      const devSrc = path.join(
+        this.context.extensionPath,
+        '..',
+        'pi-mono',
+        'packages',
+        'coding-agent',
+        'src',
+        'cli.ts',
+      );
       if (fs.existsSync(devSrc)) candidate = devSrc;
     }
 
@@ -326,23 +399,62 @@ export class PiRunner {
       onDidWrite: writeEmitter.event,
       onDidClose: closeEmitter.event,
       open: () => {
-        this.output?.appendLine(`[INFO] spawning pi in terminal (prefer bundled CLI or development source)`);
+        this.output?.appendLine(
+          `[INFO] spawning pi in terminal (prefer bundled CLI or development source)`,
+        );
 
         // Prepare environment; optionally unset sensitive API keys like ai.sh does when noEnv is requested
         const env = { ...process.env } as any;
         if (options && options.noEnv) {
           const toUnset = [
-            'ANTHROPIC_API_KEY','ANTHROPIC_OAUTH_TOKEN','OPENAI_API_KEY','GEMINI_API_KEY','GROQ_API_KEY','CEREBRAS_API_KEY','XAI_API_KEY','OPENROUTER_API_KEY','ZAI_API_KEY','MISTRAL_API_KEY','MINIMAX_API_KEY','MINIMAX_CN_API_KEY','AI_GATEWAY_API_KEY','OPENCODE_API_KEY','COPILOT_GITHUB_TOKEN','GH_TOKEN','GITHUB_TOKEN','GOOGLE_APPLICATION_CREDENTIALS','GOOGLE_CLOUD_PROJECT','GCLOUD_PROJECT','GOOGLE_CLOUD_LOCATION','AWS_PROFILE','AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN','AWS_REGION','AWS_DEFAULT_REGION','AWS_BEARER_TOKEN_BEDROCK','AWS_CONTAINER_CREDENTIALS_RELATIVE_URI','AWS_CONTAINER_CREDENTIALS_FULL_URI','AWS_WEB_IDENTITY_TOKEN_FILE','AZURE_OPENAI_API_KEY','AZURE_OPENAI_BASE_URL','AZURE_OPENAI_RESOURCE_NAME'
+            'ANTHROPIC_API_KEY',
+            'ANTHROPIC_OAUTH_TOKEN',
+            'OPENAI_API_KEY',
+            'GEMINI_API_KEY',
+            'GROQ_API_KEY',
+            'CEREBRAS_API_KEY',
+            'XAI_API_KEY',
+            'OPENROUTER_API_KEY',
+            'ZAI_API_KEY',
+            'MISTRAL_API_KEY',
+            'MINIMAX_API_KEY',
+            'MINIMAX_CN_API_KEY',
+            'AI_GATEWAY_API_KEY',
+            'OPENCODE_API_KEY',
+            'COPILOT_GITHUB_TOKEN',
+            'GH_TOKEN',
+            'GITHUB_TOKEN',
+            'GOOGLE_APPLICATION_CREDENTIALS',
+            'GOOGLE_CLOUD_PROJECT',
+            'GCLOUD_PROJECT',
+            'GOOGLE_CLOUD_LOCATION',
+            'AWS_PROFILE',
+            'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY',
+            'AWS_SESSION_TOKEN',
+            'AWS_REGION',
+            'AWS_DEFAULT_REGION',
+            'AWS_BEARER_TOKEN_BEDROCK',
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
+            'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+            'AWS_WEB_IDENTITY_TOKEN_FILE',
+            'AZURE_OPENAI_API_KEY',
+            'AZURE_OPENAI_BASE_URL',
+            'AZURE_OPENAI_RESOURCE_NAME',
           ];
-          for (const k of toUnset) { delete env[k]; }
-          this.output?.appendLine('[INFO] spawning terminal with sensitive env vars unset (noEnv=true)');
+          for (const k of toUnset) {
+            delete env[k];
+          }
+          this.output?.appendLine(
+            '[INFO] spawning terminal with sensitive env vars unset (noEnv=true)',
+          );
         }
 
         // Helper to wire a spawned process to the terminal emitters
         const wireProc = (p: ChildProcessWithoutNullStreams) => {
-          p.stdout?.on('data', (b) => writeEmitter.fire(b.toString()));
-          p.stderr?.on('data', (b) => writeEmitter.fire(b.toString()));
-          p.on('exit', (code) => {
+          p.stdout?.on('data', b => writeEmitter.fire(b.toString()));
+          p.stderr?.on('data', b => writeEmitter.fire(b.toString()));
+          p.on('exit', code => {
             closeEmitter.fire(code ?? 0);
             this.output?.appendLine('[INFO] pi (terminal) process exited: ' + String(code));
             if (this.terminalProc === p) this.terminalProc = undefined;
@@ -359,20 +471,32 @@ export class PiRunner {
         if (candidate && fs.existsSync(candidate)) {
           const ext = path.extname(candidate).toLowerCase();
           if (ext === '.ts') {
-            this.output?.appendLine('[INFO] using TypeScript CLI at ' + candidate + ' — launching via `npx tsx`');
+            this.output?.appendLine(
+              '[INFO] using TypeScript CLI at ' + candidate + ' — launching via `npx tsx`',
+            );
             try {
-              const p = spawn('npx', ['tsx', candidate, ...execArgs], { stdio: ['pipe','pipe','pipe'], cwd: this.context.extensionPath, env });
+              const p = spawn('npx', ['tsx', candidate, ...execArgs], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                cwd: this.context.extensionPath,
+                env,
+              });
               this.terminalProc = p;
               wireProc(p);
             } catch (err) {
-              this.output?.appendLine('[ERROR] failed to spawn `npx tsx` for TS CLI: ' + String(err));
+              this.output?.appendLine(
+                '[ERROR] failed to spawn `npx tsx` for TS CLI: ' + String(err),
+              );
               writeEmitter.fire('Failed to start pi terminal: ' + String(err));
             }
           } else {
             // Assume JS
             this.output?.appendLine('[INFO] using CLI at ' + candidate + ' — launching via node');
             try {
-              const p = spawn(nodeBin, [candidate, ...execArgs], { stdio: ['pipe','pipe','pipe'], cwd: this.context.extensionPath, env });
+              const p = spawn(nodeBin, [candidate, ...execArgs], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+                cwd: this.context.extensionPath,
+                env,
+              });
               this.terminalProc = p;
               wireProc(p);
             } catch (err) {
@@ -380,13 +504,13 @@ export class PiRunner {
               writeEmitter.fire('Failed to start pi terminal: ' + String(err));
             }
           }
-
         } else {
           // No candidate found: inform user and offer a shortcut to settings. We intentionally do NOT try to install globally.
-          const msg = 'pi CLI not found. Configure the development workspace or include @mariozechner/pi-coding-agent in the extension node_modules.';
+          const msg =
+            'pi CLI not found. Configure the development workspace or include @mariozechner/pi-coding-agent in the extension node_modules.';
           this.output?.appendLine('[ERROR] ' + msg);
           writeEmitter.fire(msg + '\n');
-          vscode.window.showInformationMessage(msg, 'Open Settings').then((choice) => {
+          vscode.window.showInformationMessage(msg, 'Open Settings').then(choice => {
             if (choice === 'Open Settings') {
               vscode.commands.executeCommand('workbench.action.openSettings', 'enohacker.piPath');
             }
@@ -395,7 +519,11 @@ export class PiRunner {
       },
 
       close: () => {
-        try { this.terminalProc?.kill(); } catch (e) { /* ignore */ }
+        try {
+          this.terminalProc?.kill();
+        } catch (e) {
+          /* ignore */
+        }
         this.terminalProc = undefined;
       },
 
@@ -407,7 +535,7 @@ export class PiRunner {
         } catch (e) {
           // ignore
         }
-      }
+      },
     };
 
     // If the caller requested an integrated (user-visible) terminal and we have a candidate,
@@ -420,10 +548,47 @@ export class PiRunner {
         const termEnv: { [key: string]: string | undefined } = { ...process.env } as any;
         if (options.noEnv) {
           const toUnset = [
-            'ANTHROPIC_API_KEY','ANTHROPIC_OAUTH_TOKEN','OPENAI_API_KEY','GEMINI_API_KEY','GROQ_API_KEY','CEREBRAS_API_KEY','XAI_API_KEY','OPENROUTER_API_KEY','ZAI_API_KEY','MISTRAL_API_KEY','MINIMAX_API_KEY','MINIMAX_CN_API_KEY','AI_GATEWAY_API_KEY','OPENCODE_API_KEY','COPILOT_GITHUB_TOKEN','GH_TOKEN','GITHUB_TOKEN','GOOGLE_APPLICATION_CREDENTIALS','GOOGLE_CLOUD_PROJECT','GCLOUD_PROJECT','GOOGLE_CLOUD_LOCATION','AWS_PROFILE','AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN','AWS_REGION','AWS_DEFAULT_REGION','AWS_BEARER_TOKEN_BEDROCK','AWS_CONTAINER_CREDENTIALS_RELATIVE_URI','AWS_CONTAINER_CREDENTIALS_FULL_URI','AWS_WEB_IDENTITY_TOKEN_FILE','AZURE_OPENAI_API_KEY','AZURE_OPENAI_BASE_URL','AZURE_OPENAI_RESOURCE_NAME'
+            'ANTHROPIC_API_KEY',
+            'ANTHROPIC_OAUTH_TOKEN',
+            'OPENAI_API_KEY',
+            'GEMINI_API_KEY',
+            'GROQ_API_KEY',
+            'CEREBRAS_API_KEY',
+            'XAI_API_KEY',
+            'OPENROUTER_API_KEY',
+            'ZAI_API_KEY',
+            'MISTRAL_API_KEY',
+            'MINIMAX_API_KEY',
+            'MINIMAX_CN_API_KEY',
+            'AI_GATEWAY_API_KEY',
+            'OPENCODE_API_KEY',
+            'COPILOT_GITHUB_TOKEN',
+            'GH_TOKEN',
+            'GITHUB_TOKEN',
+            'GOOGLE_APPLICATION_CREDENTIALS',
+            'GOOGLE_CLOUD_PROJECT',
+            'GCLOUD_PROJECT',
+            'GOOGLE_CLOUD_LOCATION',
+            'AWS_PROFILE',
+            'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY',
+            'AWS_SESSION_TOKEN',
+            'AWS_REGION',
+            'AWS_DEFAULT_REGION',
+            'AWS_BEARER_TOKEN_BEDROCK',
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI',
+            'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+            'AWS_WEB_IDENTITY_TOKEN_FILE',
+            'AZURE_OPENAI_API_KEY',
+            'AZURE_OPENAI_BASE_URL',
+            'AZURE_OPENAI_RESOURCE_NAME',
           ];
-          for (const k of toUnset) { delete termEnv[k]; }
-          this.output?.appendLine('[INFO] launching integrated terminal with sensitive env vars unset (noEnv=true)');
+          for (const k of toUnset) {
+            delete termEnv[k];
+          }
+          this.output?.appendLine(
+            '[INFO] launching integrated terminal with sensitive env vars unset (noEnv=true)',
+          );
         }
 
         const ext = path.extname(candidate).toLowerCase();
@@ -431,16 +596,34 @@ export class PiRunner {
           // Run via npx tsx using the user's shell so npx is resolved from the shell environment.
           if (process.platform === 'win32') {
             const cmd = `npx tsx ${quotePowerShell(candidate)} ${execArgs.map(quotePowerShell).join(' ')}`;
-            this.output?.appendLine('[INFO] creating integrated terminal: shellPath=powershell.exe, shellArgs=' + JSON.stringify(['-NoProfile', '-Command', cmd]));
-            const term = vscode.window.createTerminal({ name, shellPath: 'powershell.exe', shellArgs: ['-NoProfile', '-Command', cmd], env: termEnv, cwd: this.context.extensionPath });
+            this.output?.appendLine(
+              '[INFO] creating integrated terminal: shellPath=powershell.exe, shellArgs=' +
+                JSON.stringify(['-NoProfile', '-Command', cmd]),
+            );
+            const term = vscode.window.createTerminal({
+              name,
+              shellPath: 'powershell.exe',
+              shellArgs: ['-NoProfile', '-Command', cmd],
+              env: termEnv,
+              cwd: this.context.extensionPath,
+            });
             term.show(true);
             this.terminal = term;
             this.isStartingTerminal = false;
             return;
           } else {
             const cmd = `npx tsx ${shellEscape(candidate)} ${execArgs.map(shellEscape).join(' ')}`;
-            this.output?.appendLine('[INFO] creating integrated terminal: shellPath=/bin/sh, shellArgs=' + JSON.stringify(['-lc', cmd]));
-            const term = vscode.window.createTerminal({ name, shellPath: '/bin/sh', shellArgs: ['-lc', cmd], env: termEnv, cwd: this.context.extensionPath });
+            this.output?.appendLine(
+              '[INFO] creating integrated terminal: shellPath=/bin/sh, shellArgs=' +
+                JSON.stringify(['-lc', cmd]),
+            );
+            const term = vscode.window.createTerminal({
+              name,
+              shellPath: '/bin/sh',
+              shellArgs: ['-lc', cmd],
+              env: termEnv,
+              cwd: this.context.extensionPath,
+            });
             term.show(true);
             this.terminal = term;
             this.isStartingTerminal = false;
@@ -448,7 +631,13 @@ export class PiRunner {
           }
         } else {
           // JS: run node directly as the terminal's process (no sendText)
-          const term = vscode.window.createTerminal({ name, shellPath: nodeBin, shellArgs: [candidate, ...execArgs], env: termEnv, cwd: this.context.extensionPath });
+          const term = vscode.window.createTerminal({
+            name,
+            shellPath: nodeBin,
+            shellArgs: [candidate, ...execArgs],
+            env: termEnv,
+            cwd: this.context.extensionPath,
+          });
           term.show(true);
           this.terminal = term;
 
@@ -456,9 +645,16 @@ export class PiRunner {
           return;
         }
       } else {
-        const msg = 'pi CLI not found for integrated terminal. Configure the development workspace or include @mariozechner/pi-coding-agent in the extension node_modules.';
+        const msg =
+          'pi CLI not found for integrated terminal. Configure the development workspace or include @mariozechner/pi-coding-agent in the extension node_modules.';
         this.output?.appendLine('[ERROR] ' + msg);
-        try { vscode.window.showInformationMessage(msg, 'Open Settings').then((choice) => { if (choice === 'Open Settings') { vscode.commands.executeCommand('workbench.action.openSettings', 'enohacker.piPath'); } }); } catch {}
+        try {
+          vscode.window.showInformationMessage(msg, 'Open Settings').then(choice => {
+            if (choice === 'Open Settings') {
+              vscode.commands.executeCommand('workbench.action.openSettings', 'enohacker.piPath');
+            }
+          });
+        } catch {}
       }
     }
 
@@ -496,12 +692,27 @@ export class PiRunner {
   }
 
   public stopRpc(): void {
-    try { if (this.rpcProc) { this.rpcProc.kill(); this.rpcProc = undefined; } } catch (e) {}
+    try {
+      if (this.rpcProc) {
+        this.rpcProc.kill();
+        this.rpcProc = undefined;
+      }
+    } catch (e) {}
   }
 
   public stopTerminal(): void {
-    try { if (this.terminalProc) { this.terminalProc.kill(); this.terminalProc = undefined; } } catch (e) {}
-    try { if (this.terminal) { this.terminal.dispose(); this.terminal = undefined; } } catch (e) {}
+    try {
+      if (this.terminalProc) {
+        this.terminalProc.kill();
+        this.terminalProc = undefined;
+      }
+    } catch (e) {}
+    try {
+      if (this.terminal) {
+        this.terminal.dispose();
+        this.terminal = undefined;
+      }
+    } catch (e) {}
   }
 
   public sendCommand(obj: any) {
@@ -518,7 +729,10 @@ export class PiRunner {
     }
     try {
       const line = JSON.stringify(obj) + '\n';
-      this.output?.appendLine('[DEBUG] writing to pi rpc stdin: ' + (line.length > 500 ? line.slice(0, 500) + '...<truncated>' : line));
+      this.output?.appendLine(
+        '[DEBUG] writing to pi rpc stdin: ' +
+          (line.length > 500 ? line.slice(0, 500) + '...<truncated>' : line),
+      );
       this.rpcProc.stdin.write(line);
     } catch (e) {
       this.output?.appendLine('[ERROR] failed to write to pi rpc stdin: ' + String(e));
@@ -542,7 +756,7 @@ export class PiRunner {
       if (!obj || typeof obj !== 'object') return;
       const t = obj.type || obj.cmd || 'unknown';
       if (t === 'completion_request' || t === 'complete' || t === 'ask' || t === 'prompt') {
-        const id = obj.id || ('mock-' + Math.floor(Math.random() * 100000));
+        const id = obj.id || 'mock-' + Math.floor(Math.random() * 100000);
         const prompt = obj.prompt || obj.message || obj.text || String(obj);
         // emit started event for this request
         this.eventEmitter.fire({ type: 'completion_started', id, prompt });
@@ -575,7 +789,12 @@ export class PiRunner {
   // internal: accumulate stdout chunks from RPC process, split into lines, parse JSON lines and emit events
   private handleRpcStdoutChunk(chunk: string) {
     // Emit raw for debugging
-    try { this.output?.appendLine('[pi stdout chunk] ' + (chunk.length > 500 ? chunk.slice(0, 500) + '...<truncated>' : chunk)); } catch (e) {}
+    try {
+      this.output?.appendLine(
+        '[pi stdout chunk] ' +
+          (chunk.length > 500 ? chunk.slice(0, 500) + '...<truncated>' : chunk),
+      );
+    } catch (e) {}
     this.rawEmitter.fire(chunk);
 
     this.rpcBuffer += chunk;
@@ -586,7 +805,9 @@ export class PiRunner {
       if (!line) continue;
       try {
         const parsed = JSON.parse(line);
-        try { this.output?.appendLine('[pi stdout json] ' + JSON.stringify(parsed)); } catch (e) {}
+        try {
+          this.output?.appendLine('[pi stdout json] ' + JSON.stringify(parsed));
+        } catch (e) {}
         this.eventEmitter.fire(parsed);
       } catch (e) {
         // Non-JSON line. Emit as raw so listeners can decide what to do
@@ -598,7 +819,9 @@ export class PiRunner {
   // Cleanup mock timers when stopping
   private cleanupMock() {
     for (const t of this.mockTimers) {
-      try { clearInterval(t); } catch (e) {}
+      try {
+        clearInterval(t);
+      } catch (e) {}
     }
     this.mockTimers = [];
   }
@@ -612,7 +835,10 @@ function simulateChunks(prompt: string): string[] {
   let cur = '';
   for (let i = 0; i < words.length; i++) {
     cur += (i ? ' ' : '') + words[i];
-    if (i % 5 === 4) { chunks.push(cur + ' '); cur = ''; }
+    if (i % 5 === 4) {
+      chunks.push(cur + ' ');
+      cur = '';
+    }
   }
   if (cur) chunks.push(cur + ' ');
   if (chunks.length === 0) chunks.push(prompt);

@@ -12,9 +12,105 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
   private pendingPromptId?: string;
   private activePromptIds: string[] = [];
 
-  constructor(private readonly context: vscode.ExtensionContext, private readonly runner: PiRunner, private readonly output?: vscode.OutputChannel) {}
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly runner: PiRunner,
+    private readonly output?: vscode.OutputChannel,
+  ) {}
 
-  public resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
+  // Handle messages originating from the Webview (frontend)
+  private async handleWebviewMessage(msg: any, webview: vscode.Webview) {
+    try {
+      this.output?.appendLine('[DEBUG] sidebar message received: ' + JSON.stringify(msg));
+
+      if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') {
+        this.output?.appendLine('[WARN] invalid message from webview: ' + String(msg));
+        return;
+      }
+
+      switch (msg.type) {
+        case 'startTerminal':
+          this.output?.appendLine('[INFO] sidebar requested startTerminal');
+          try {
+            await this.runner.startTerminal('pi (enohacker)', { integrated: true });
+            webview.postMessage({ type: 'terminalStarted' });
+          } catch (e) {
+            this.output?.appendLine('[ERROR] startTerminal failed: ' + String(e));
+            webview.postMessage({ type: 'error', error: String(e) });
+          }
+          break;
+
+        case 'startRpc':
+          this.output?.appendLine('[INFO] sidebar requested startHiddenRpc');
+          try {
+            await this.runner.startHiddenRpc({
+              waitForReady: true,
+              timeoutMs: 5000,
+              readyPredicate: (ev: any) =>
+                ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started'),
+            });
+            webview.postMessage({ type: 'rpcStarted', pid: this.runner.getRpcPid() });
+          } catch (e) {
+            this.output?.appendLine('[ERROR] startHiddenRpc failed: ' + String(e));
+            webview.postMessage({ type: 'error', error: String(e) });
+          }
+          break;
+
+        case 'sendCommand':
+          this.output?.appendLine('[INFO] sidebar sendCommand: ' + JSON.stringify(msg.command));
+          try {
+            await this.runner.sendCommand(msg.command);
+          } catch (e) {
+            webview.postMessage({ type: 'error', error: String(e) });
+          }
+          break;
+
+        case 'request_completion':
+          this.output?.appendLine(
+            '[INFO] sidebar requested completion: ' + JSON.stringify({ id: msg.id }),
+          );
+          try {
+            await this.runner.startHiddenRpc({
+              waitForReady: true,
+              timeoutMs: 5000,
+              readyPredicate: (ev: any) =>
+                ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started'),
+            });
+            this.pendingPromptId = msg.id;
+            await this.runner.sendCommand({ type: 'prompt', id: msg.id, message: msg.prompt });
+            this.output?.appendLine('[DEBUG] forwarded prompt to RPC: id=' + String(msg.id));
+          } catch (e) {
+            this.output?.appendLine('[ERROR] completion request failed: ' + String(e));
+            webview.postMessage({ type: 'error', error: String(e) });
+          }
+          break;
+
+        default:
+          this.output?.appendLine(
+            '[WARN] unknown message type received from sidebar: ' + JSON.stringify(msg),
+          );
+      }
+    } catch (e) {
+      this.output?.appendLine('[ERROR] message handler failed: ' + String(e));
+    }
+  }
+
+  // Handle events emitted by PiRunner (RPC events)
+  private handleRunnerEvent(ev: any, webview: vscode.Webview) {
+    try {
+      // Log for debugging
+        this.output?.appendLine('[DEBUG] prompt response from RPC: ' + JSON.stringify(ev));
+        webview.postMessage(ev);
+    } catch (e) {
+      this.output?.appendLine('[ERROR] failed to post runner event to webview: ' + String(e));
+    }
+  }
+
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
     this._view = webviewView;
 
     this.output?.appendLine('[DEBUG] resolveWebviewView called');
@@ -22,7 +118,7 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')]
+      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
     };
 
     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
@@ -40,17 +136,20 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
             this.output?.appendLine('[ERROR] startTerminal failed: ' + String(e));
             webviewView.webview.postMessage({ type: 'error', error: String(e) });
           }
-
         } else if (msg.type === 'startRpc') {
           this.output?.appendLine('[INFO] sidebar requested startHiddenRpc');
           try {
-            await this.runner.startHiddenRpc({ waitForReady: true, timeoutMs: 5000, readyPredicate: (ev: any) => ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started') });
+            await this.runner.startHiddenRpc({
+              waitForReady: true,
+              timeoutMs: 5000,
+              readyPredicate: (ev: any) =>
+                ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started'),
+            });
             webviewView.webview.postMessage({ type: 'rpcStarted', pid: this.runner.getRpcPid() });
           } catch (e) {
             this.output?.appendLine('[ERROR] startHiddenRpc failed: ' + String(e));
             webviewView.webview.postMessage({ type: 'error', error: String(e) });
           }
-
         } else if (msg.type === 'sendCommand') {
           this.output?.appendLine('[INFO] sidebar sendCommand: ' + JSON.stringify(msg.command));
           try {
@@ -58,12 +157,18 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
           } catch (e) {
             webviewView.webview.postMessage({ type: 'error', error: String(e) });
           }
-
         } else if (msg.type === 'request_completion') {
           // Frontend requests a completion; ensure RPC is running then forward the request
-          this.output?.appendLine('[INFO] sidebar requested completion: ' + JSON.stringify({ id: msg.id }));
+          this.output?.appendLine(
+            '[INFO] sidebar requested completion: ' + JSON.stringify({ id: msg.id }),
+          );
           try {
-            await this.runner.startHiddenRpc({ waitForReady: true, timeoutMs: 5000, readyPredicate: (ev: any) => ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started') });
+            await this.runner.startHiddenRpc({
+              waitForReady: true,
+              timeoutMs: 5000,
+              readyPredicate: (ev: any) =>
+                ev && (ev.type === 'rpc_ready' || ev.type === 'rpc_started'),
+            });
             // Forward to RPC using the official RPC command 'prompt'
             // Store pendingPromptId so subsequent streaming events can be correlated to this request
             this.pendingPromptId = msg.id;
@@ -73,45 +178,51 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
             this.output?.appendLine('[ERROR] completion request failed: ' + String(e));
             webviewView.webview.postMessage({ type: 'error', error: String(e) });
           }
-
         } else {
-          this.output?.appendLine('[WARN] unknown message type received from sidebar: ' + JSON.stringify(msg));
-          
+          this.output?.appendLine(
+            '[WARN] unknown message type received from sidebar: ' + JSON.stringify(msg),
+          );
         }
       } catch (e) {
         this.output?.appendLine('[ERROR] message handler failed: ' + String(e));
       }
     };
 
-    webviewView.webview.onDidReceiveMessage(messageHandler, undefined, this.disposables);
+    webviewView.webview.onDidReceiveMessage(
+      (msg: any) => this.handleWebviewMessage(msg, webviewView.webview),
+      undefined,
+      this.disposables,
+    );
 
-    const evDisp = this.runner.onEvent((ev: any) => {
-      try {
-        this.output?.appendLine('[DEBUG] prompt response from RPC: ' + JSON.stringify(ev));
-      } catch (e) {
-        // ignore
-      }
-    });
+    const evDisp = this.runner.onEvent((ev: any) =>
+      this.handleRunnerEvent(ev, webviewView.webview),
+    );
     this.disposables.push(evDisp);
 
     // Also forward raw stdout chunks (useful for debugging when RPC emits non-JSON streaming)
-    const rawDisp = this.runner.onRaw((s: string) => {
-      try {
-        webviewView.webview.postMessage({ type: 'event', event: { type: 'raw_output', text: String(s) } });
-      } catch (e) {}
-    });
-    this.disposables.push(rawDisp);
+    // const rawDisp = this.runner.onRaw((s: string) => {
+    //   try {
+    //     webviewView.webview.postMessage({
+    //       type: 'event',
+    //       event: { type: 'raw_output', text: String(s) },
+    //     });
+    //   } catch (e) {}
+    // });
+    // this.disposables.push(rawDisp);
 
     // Attempt to start the headless RPC when the sidebar is resolved (view shown)
     (async () => {
       try {
         this.output?.appendLine('[INFO] sidebar resolving: attempting to start hidden RPC');
         await this.runner.startHiddenRpc();
-        await this.runner.sendCommand({"type": "get_state"});
-        try { webviewView.webview.postMessage({"type": "get_state"}); } catch (e) { /* ignore */ }
+        await this.runner.sendCommand({ type: 'get_state' });
       } catch (e) {
         this.output?.appendLine('[WARN] failed to start hidden RPC on resolve: ' + String(e));
-        try { webviewView.webview.postMessage({ type: 'error', error: String(e) }); } catch (e) { /* ignore */ }
+        try {
+          webviewView.webview.postMessage({ type: 'error', error: String(e) });
+        } catch (e) {
+          /* ignore */
+        }
       }
     })();
 
@@ -122,7 +233,6 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
           if (webviewView.visible) {
             this.output?.appendLine('[DEBUG] sidebar visible — refreshing webview HTML');
             webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
-            try { webviewView.webview.postMessage({"type": "get_state"}); } catch (e) { /* ignore */ }
           }
         } catch (e) {
           this.output?.appendLine('[DEBUG] onDidChangeVisibility handler failed: ' + String(e));
@@ -135,7 +245,9 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => {
       while (this.disposables.length) {
         const d = this.disposables.pop();
-        try { d?.dispose(); } catch {}
+        try {
+          d?.dispose();
+        } catch {}
       }
     });
   }
@@ -148,15 +260,21 @@ export class EnoHackerSidebarProvider implements vscode.WebviewViewProvider {
 
     try {
       html = fs.readFileSync(htmlPath, 'utf8');
-      this.output?.appendLine('[DEBUG] loaded media/sidebar.html (' + String(html.length) + ' bytes) from ' + htmlPath);
+      this.output?.appendLine(
+        '[DEBUG] loaded media/sidebar.html (' + String(html.length) + ' bytes) from ' + htmlPath,
+      );
     } catch (e) {
       this.output?.appendLine('[ERROR] failed to read media/sidebar.html: ' + String(e));
       html = undefined;
     }
 
     // Build webview URIs for media
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sidebar.css'));
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sidebar.js'));
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sidebar.css'),
+    );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, 'media', 'sidebar.js'),
+    );
 
     // Ensure html is a string then replace placeholders
     html = (html || '')
