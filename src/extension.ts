@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { PiRunner } from './agent/piRunner';
+import { EnoHackerSidebarProvider } from './view/sidebarView';
 
 // 开发阶段布局优先：默认启用 layout-only 模式，不启动 pi 子进程（便于在 Extension Dev Host 中快速预览界面）
 const LAYOUT_ONLY = true;
@@ -27,6 +28,21 @@ export function activate(context: vscode.ExtensionContext) {
   try {
     // Centralized runner that manages pi process (headless or terminal-backed)
     const runner = new PiRunner(context, outputChannel);
+
+    // Sidebar webview provider (UI agent)
+    try {
+      const provider = new EnoHackerSidebarProvider(context, runner, outputChannel);
+      const disp = vscode.window.registerWebviewViewProvider(EnoHackerSidebarProvider.viewType, provider, {
+        webviewOptions: { retainContextWhenHidden: true }
+      });
+      context.subscriptions.push(disp);
+      context.subscriptions.push(vscode.commands.registerCommand('enohacker.showSidebar', async () => {
+        try { await vscode.commands.executeCommand('workbench.view.extension.enohacker-sidebar'); } catch (e) { /* ignore */ }
+      }));
+      outputChannel?.appendLine('[INFO] registered sidebar webview provider');
+    } catch (e) {
+      outputChannel?.appendLine('[WARN] failed to register sidebar webview provider: ' + String(e));
+    }
 
     // Command to spawn a terminal-backed pi instance (visible to the user)
     context.subscriptions.push(vscode.commands.registerCommand('enohacker.openPiTerminal', async () => {
